@@ -1,0 +1,25 @@
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Python caching
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Temporary IDE / OS files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Downloaded flutter scripts
+download_flutter.py
+remove_fonts.py
+flutter_windows.zip
+flutter_sdk.zip
