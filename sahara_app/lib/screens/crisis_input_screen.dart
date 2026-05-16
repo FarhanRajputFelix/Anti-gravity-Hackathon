@@ -215,8 +215,8 @@ class _CrisisInputScreenState extends State<CrisisInputScreen> with TickerProvid
         const SizedBox(height: 10),
         ..._scenarios.map((s) => GestureDetector(
           onTap: () {
-            _textController.text = s['text'];
-            setState(() => _selectedSource = s['source']);
+            _textController.text = s['text'] as String;
+            setState(() => _selectedSource = s['source'] as String);
           },
           child: Container(
             margin: const EdgeInsets.only(bottom: 10),
@@ -232,8 +232,8 @@ class _CrisisInputScreenState extends State<CrisisInputScreen> with TickerProvid
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(s['label'], style: TextStyle(color: AppTheme.textPrimary, fontSize: 14, fontWeight: FontWeight.w600)),
-                      Text(s['text'], maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: AppTheme.textSecondary, fontSize: 12)),
+                      Text(s['label'] as String, style: TextStyle(color: AppTheme.textPrimary, fontSize: 14, fontWeight: FontWeight.w600)),
+                      Text(s['text'] as String, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: AppTheme.textSecondary, fontSize: 12)),
                     ],
                   ),
                 ),

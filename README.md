@@ -83,30 +83,60 @@
 
 ## 🚀 Setup Instructions
 
-### Backend
+### Backend (Python 3.10+)
 
 ```bash
 cd sahara_backend
 pip install -r requirements.txt
-uvicorn main:app --reload --port 8000
+python -m uvicorn main:app --reload --port 8000
 ```
 
-API docs available at: http://localhost:8000/docs
+API docs: http://localhost:8000/docs · Health: http://localhost:8000/
+
+Optional integrations (Firebase persistence + Gemini NLP — system runs fully without them):
+```bash
+pip install -r requirements-optional.txt
+```
+
+End-to-end pipeline self-test (no server needed):
+```bash
+python test_pipeline.py
+```
 
 ### Flutter App
 
+Prerequisites: Flutter 3.27+ (verified on 3.41.9). Get the SDK from https://docs.flutter.dev/get-started/install
+
 ```bash
 cd sahara_app
-
-# Add your Google Maps API key in:
-# android/app/src/main/AndroidManifest.xml → YOUR_GOOGLE_MAPS_API_KEY
-
 flutter pub get
-flutter run
+
+# Web build (no Google Maps key required to compile — map tile shows
+# a "for development purposes only" watermark until you add a key)
+flutter build web
+
+# Or run live
+flutter run -d chrome              # web
+flutter run                        # Android emulator (uses 10.0.2.2:8000)
+flutter run -d windows             # Windows desktop (if enabled)
 ```
 
-> For Android emulator, the backend URL `http://10.0.2.2:8000` is pre-configured.
-> For physical device, update `lib/services/api_service.dart` `baseUrl` to your machine's LAN IP.
+#### Pointing the app at a non-default backend
+
+The app picks a base URL automatically: `localhost:8000` on web/desktop/iOS,
+`10.0.2.2:8000` on the Android emulator. To override for a deployed backend or
+a physical device on your LAN:
+
+```bash
+flutter run --dart-define=SAHARA_API_BASE_URL=http://192.168.1.42:8000
+```
+
+#### Google Maps API key
+
+The map screen renders without a key (with a watermark). To remove the watermark:
+
+- Android — edit `android/app/src/main/AndroidManifest.xml`, replace `YOUR_GOOGLE_MAPS_API_KEY`
+- Web — edit `web/index.html`, replace `YOUR_GOOGLE_MAPS_API_KEY` in the `<script src="https://maps.googleapis.com/...">` tag
 
 ---
 

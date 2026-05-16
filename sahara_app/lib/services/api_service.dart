@@ -1,10 +1,28 @@
 import 'dart:convert';
+import 'dart:io' show Platform;
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
 
 class ApiService {
-  // Change this to your deployed backend URL or use 10.0.2.2 for Android emulator
-  static const String baseUrl = 'http://10.0.2.2:8000';
-  // For physical device: use your machine's local IP e.g. http://192.168.1.x:8000
+  /// Override at build time:
+  ///   flutter run --dart-define=SAHARA_API_BASE_URL=https://my-host.com
+  static const String _envBase = String.fromEnvironment(
+    'SAHARA_API_BASE_URL',
+    defaultValue: '',
+  );
+
+  /// Platform-aware base URL.
+  /// - Web/desktop  → http://localhost:8000
+  /// - Android      → http://10.0.2.2:8000 (emulator loopback)
+  /// - iOS sim/real → http://localhost:8000
+  static String get baseUrl {
+    if (_envBase.isNotEmpty) return _envBase;
+    if (kIsWeb) return 'http://localhost:8000';
+    try {
+      if (Platform.isAndroid) return 'http://10.0.2.2:8000';
+    } catch (_) {}
+    return 'http://localhost:8000';
+  }
 
   static Future<Map<String, dynamic>> analyzeSignal({
     required String text,

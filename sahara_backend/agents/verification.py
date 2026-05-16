@@ -8,7 +8,8 @@ import time
 from datetime import datetime
 from models import (
     CrisisContext, AgentTrace, ToolCall,
-    VerificationResult, VerificationStatus, CrisisType
+    VerificationResult, VerificationStatus, CrisisType,
+    FallbackEntry,
 )
 from mock_data import MOCK_WEATHER_DATA, MOCK_TRAFFIC_DATA
 
@@ -100,12 +101,12 @@ def run(context: CrisisContext) -> CrisisContext:
     else:
         observations.append(f"⚠ Traffic API unavailable for {city}: {traffic.get('error', 'Timeout')}. Routing to Fallback Agent.")
         reasoning_steps.append(f"Traffic API failure detected. Fallback Agent will apply historical congestion patterns for {city}. Accuracy degraded by ~15%.")
-        context.fallback_history.append({  # type: ignore
-            "triggered_by": "Verification Agent",
-            "reason": f"Traffic API unavailable: {traffic.get('error', 'Timeout')}",
-            "strategy_used": "Historical traffic pattern estimation",
-            "timestamp": datetime.utcnow().isoformat(),
-        })
+        context.fallback_history.append(FallbackEntry(
+            triggered_by="Verification Agent",
+            reason=f"Traffic API unavailable: {traffic.get('error', 'Timeout')}",
+            strategy_used="Historical traffic pattern estimation",
+            timestamp=datetime.utcnow().isoformat(),
+        ))
 
     # ── STEP 3: Repeated signal check ────────────
     tool_calls.append(ToolCall(
@@ -156,13 +157,13 @@ def run(context: CrisisContext) -> CrisisContext:
         agent_name="Verification Agent",
         agent_index=2,
         timestamp=datetime.utcnow().isoformat(),
-        input={"city": city, "crisis_type": crisis_type.value, "entities": entities.dict()},
+        input={"city": city, "crisis_type": crisis_type.value, "entities": entities.model_dump()},
         observations=observations,
         reasoning_steps=reasoning_steps,
         tool_calls=tool_calls,
         decision=decision,
         confidence=round(confidence, 3),
-        output=verification.dict(),
+        output=verification.model_dump(),
         execution_time_ms=elapsed,
         fallback_triggered=not traffic_available or not weather_available,
         fallback_reason="Traffic or Weather API unavailable" if not traffic_available else None,

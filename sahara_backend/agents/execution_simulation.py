@@ -162,7 +162,7 @@ def run(context: CrisisContext) -> CrisisContext:
         tool_calls=tool_calls,
         decision=f"All {len(actions)} actions EXECUTED. Congestion: {congestion_before}→{congestion_after}. {units_dispatched} units dispatched. {alerts_sent:,} alerts sent. {pop_helped:,} citizens helped.",
         confidence=0.92,
-        output=simulation.dict(),
+        output=simulation.model_dump(),
         execution_time_ms=elapsed,
         fallback_triggered=False,
     )

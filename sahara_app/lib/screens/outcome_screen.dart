@@ -141,7 +141,7 @@ class _OutcomeScreenState extends State<OutcomeScreen> with TickerProviderStateM
         const SizedBox(height: 12),
         Row(children: [
           _buildQuickStat('Execution', '${((_result['total_execution_time_ms'] as num?)?.toInt() ?? 3284)}ms', AppTheme.glowBlue),
-          _buildQuickStat('Confidence', '${((_result['confidence'] as num?)?.toDouble() ?? 0.82 * 100).toStringAsFixed(0)}%', AppTheme.successGreen),
+          _buildQuickStat('Confidence', '${((((_result['confidence'] as num?)?.toDouble() ?? 0.82) * 100).toStringAsFixed(0))}%', AppTheme.successGreen),
           _buildQuickStat('Response', '${(_sim['response_time_minutes'] as num?)?.toInt() ?? 8} min', AppTheme.alertOrange),
         ]),
       ]),
@@ -318,7 +318,7 @@ class _OutcomeScreenState extends State<OutcomeScreen> with TickerProviderStateM
 
   Widget _buildTicketList() {
     final tickets = (_sim['emergency_tickets'] as List?)?.cast<String>() ?? ['DISP-A3F7', 'RTE-B8E2', 'ALT-C5F1', 'MED-D2E3'];
-    final icons = [Icons.local_ambulance, Icons.alt_route, Icons.notifications_active, Icons.local_hospital];
+    final icons = [Icons.medical_services, Icons.alt_route, Icons.notifications_active, Icons.local_hospital];
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Text('Emergency Tickets (${tickets.length})', style: TextStyle(color: AppTheme.textPrimary, fontSize: 14, fontWeight: FontWeight.w600)),
       const SizedBox(height: 10),

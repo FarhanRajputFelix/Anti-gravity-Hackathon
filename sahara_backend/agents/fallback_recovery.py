@@ -27,16 +27,15 @@ def run(context: CrisisContext) -> CrisisContext:
     # ──────────────────────────────────────────────
     # SCENARIO 1: Traffic API unavailable
     # ──────────────────────────────────────────────
-    traffic_failure = any(
-        "traffic api" in e.get("reason", "").lower() or "traffic api" in (e.reason if hasattr(e, "reason") else "").lower()
-        for e in (context.fallback_history if isinstance(context.fallback_history[0], FallbackEntry) else
-                  [FallbackEntry(**e) for e in context.fallback_history] if context.fallback_history else [])
-    ) if context.fallback_history else False
-
-    # Simpler check on raw history
     city = entities.city if entities else "islamabad"
-    fallback_reasons = [str(h) for h in context.fallback_history]
-    traffic_failure = any("traffic" in r.lower() for r in fallback_reasons)
+
+    def _entry_reason(entry) -> str:
+        return entry.reason if isinstance(entry, FallbackEntry) else str(entry.get("reason", entry))
+
+    traffic_failure = any(
+        "traffic" in _entry_reason(e).lower()
+        for e in context.fallback_history
+    )
 
     if traffic_failure:
         triggered = True
@@ -57,7 +56,7 @@ def run(context: CrisisContext) -> CrisisContext:
         reasoning_steps.append(f"{note}")
         fallback_actions_taken.append(f"Traffic API → Historical estimation ({typical_congestion}/100 congestion baseline, ±15% margin)")
 
-        context.fallback_history.append(FallbackEntry(  # type: ignore
+        context.fallback_history.append(FallbackEntry(
             triggered_by="Fallback & Recovery Agent",
             reason="Traffic API unavailable — timeout after 30s",
             strategy_used=f"Historical pattern substitution: {typical_congestion}/100 congestion index (90-day avg)",

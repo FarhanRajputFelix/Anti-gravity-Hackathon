@@ -11,10 +11,21 @@ Responsibilities:
 - Final result aggregation
 """
 
+import sys
 import time
 import uuid
 from datetime import datetime
 from typing import Optional
+
+# Windows consoles default to cp1252 which can't render the arrows/checkmarks
+# used in our trace logs. Force UTF-8 on stdout/stderr where supported.
+for _stream in (sys.stdout, sys.stderr):
+    reconfigure = getattr(_stream, "reconfigure", None)
+    if reconfigure is not None:
+        try:
+            reconfigure(encoding="utf-8", errors="replace")
+        except (ValueError, OSError):
+            pass
 from models import (
     CrisisContext, CrisisSignal, AnalysisResult,
     FallbackEntry, VerificationStatus
@@ -24,6 +35,7 @@ from mock_data import MAP_CRISIS_DATA, DEMO_SCENARIOS
 # ── Import all 6 specialized agents ───────────────
 from agents import signal_ingestion, verification, severity_analysis
 from agents import response_planning, execution_simulation, fallback_recovery
+from firebase_client import firebase
 
 # In-memory crisis store (acts as lightweight Firebase stand-in)
 CRISIS_STORE: dict = {}
@@ -188,13 +200,20 @@ class AntigravityOrchestrator:
             map_data=map_data,
         )
 
-        # Store in memory + log
-        CRISIS_STORE[context.crisis_id] = result.dict()
-        LOG_STORE.append({
+        # Store in memory + log + (optionally) Firebase
+        result_payload = result.model_dump()
+        log_payload = {
             "crisis_id": context.crisis_id,
             "timestamp": context.created_at,
-            "traces": [t.dict() for t in context.agent_traces],
-        })
+            "crisis_type": result.crisis_type,
+            "city": result.city,
+            "severity": result.severity,
+            "traces": [t.model_dump() for t in context.agent_traces],
+        }
+        CRISIS_STORE[context.crisis_id] = result_payload
+        LOG_STORE.append(log_payload)
+        firebase.save_crisis(context.crisis_id, result_payload)
+        firebase.save_log(log_payload)
 
         return result
 

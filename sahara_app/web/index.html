@@ -1,46 +1,54 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <!--
-    If you are serving your web app in a path other than the root, change the
-    href value below to reflect the base path you are serving from.
-
-    The path provided below has to start and end with a slash "/" in order for
-    it to work correctly.
-
-    For more details:
-    * https://developer.mozilla.org/en-US/docs/Web/HTML/Element/base
-
-    This is a placeholder for base href that will be replaced by the value of
-    the `--base-href` argument provided to `flutter build`.
-  -->
   <base href="$FLUTTER_BASE_HREF">
 
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="description" content="A new Flutter project.">
+  <meta name="description" content="SAHARA AI — Pakistan's First Agentic Urban Crisis Response Operating System">
+  <meta name="theme-color" content="#050E1F">
 
-  <!-- iOS meta tags & icons -->
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="sahara_ai">
+  <meta name="apple-mobile-web-app-title" content="SAHARA AI">
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
 
-  <!-- Favicon -->
   <link rel="icon" type="image/png" href="favicon.png"/>
 
-  <title>sahara_ai</title>
+  <title>SAHARA AI — Crisis Intelligence Platform</title>
   <link rel="manifest" href="manifest.json">
+
+  <!--
+    Google Maps JavaScript API for google_maps_flutter web.
+    Replace YOUR_GOOGLE_MAPS_API_KEY with a key from:
+      https://console.cloud.google.com/google/maps-apis
+    Without a key the map tile will render a "for development purposes only"
+    watermark but the rest of the app still works.
+  -->
+  <script src="https://maps.googleapis.com/maps/api/js?key=YOUR_GOOGLE_MAPS_API_KEY"></script>
+
+  <style>
+    html, body { background: #050E1F; margin: 0; padding: 0; height: 100%; }
+    #boot-loader {
+      position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+      background: #050E1F; color: #4D9FFF; font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+      letter-spacing: 0.18em; font-size: 12px;
+    }
+    #boot-loader .dot {
+      width: 8px; height: 8px; border-radius: 50%; background: #1E6FFF; margin-right: 10px;
+      box-shadow: 0 0 12px #1E6FFF; animation: pulse 1.4s ease-in-out infinite;
+    }
+    @keyframes pulse { 0%,100% { opacity: 0.3 } 50% { opacity: 1 } }
+  </style>
 </head>
 <body>
-  <!--
-    You can customize the "flutter_bootstrap.js" script.
-    This is useful to provide a custom configuration to the Flutter loader
-    or to give the user feedback during the initialization process.
-
-    For more details:
-    * https://docs.flutter.dev/platform-integration/web/initialization
-  -->
+  <div id="boot-loader"><div class="dot"></div>SAHARA AI · BOOTING ANTIGRAVITY</div>
+  <script>
+    window.addEventListener('flutter-first-frame', function () {
+      var el = document.getElementById('boot-loader');
+      if (el) el.parentNode.removeChild(el);
+    });
+  </script>
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>

@@ -1,0 +1,14 @@
+# Optional integrations for SAHARA AI.
+# Install with: pip install -r requirements-optional.txt
+#
+# These packages are NOT required for the demo. The backend falls back to:
+#   - In-memory crisis store (firebase_client.FirebaseClient) when firebase-admin is absent
+#   - Rule-based multilingual NLP engine when google-generativeai is absent
+#
+# Enable Firebase persistence:
+#   export FIREBASE_ENABLED=true
+#   export FIREBASE_CREDENTIALS=/path/to/service-account.json
+#   export FIREBASE_DB_URL=https://your-project.firebaseio.com
+
+firebase-admin>=6.5.0
+google-generativeai>=0.5.0

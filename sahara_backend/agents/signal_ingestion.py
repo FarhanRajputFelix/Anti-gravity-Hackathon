@@ -200,7 +200,7 @@ def run(context: CrisisContext) -> CrisisContext:
         tool_calls=tool_calls,
         decision=f"Structured crisis signal extracted. Type={crisis_type.value}, City={city.title()}, Lang={lang}, Severity hint={severity_hint}.",
         confidence=0.88,
-        output=entities.dict(),
+        output=entities.model_dump(),
         execution_time_ms=elapsed,
         fallback_triggered=False,
     )

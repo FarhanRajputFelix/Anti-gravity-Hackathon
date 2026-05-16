@@ -168,7 +168,7 @@ def run(context: CrisisContext) -> CrisisContext:
         tool_calls=tool_calls,
         decision=f"Severity = {severity.value}. Affected population: {affected_pop:,}. Urgency: {urgency}. Roads impacted: {len(affected_roads)}.",
         confidence=round(confidence * 0.95, 3),
-        output=result.dict(),
+        output=result.model_dump(),
         execution_time_ms=elapsed,
         fallback_triggered=False,
     )

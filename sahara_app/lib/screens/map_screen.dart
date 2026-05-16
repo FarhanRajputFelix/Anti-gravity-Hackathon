@@ -70,12 +70,12 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
         points: [LatLng(33.6938, 73.0145), LatLng(33.6800, 73.0000), LatLng(33.6750, 72.9900)],
       ));
       // Emergency dispatch (blue)
-      lines.add(const Polyline(
-        polylineId: PolylineId('dispatch_1'),
-        color: Color(0xFF1E6FFF),
+      lines.add(Polyline(
+        polylineId: const PolylineId('dispatch_1'),
+        color: const Color(0xFF1E6FFF),
         width: 4,
-        patterns: [PatternItem.dash(20), PatternItem.gap(10)],
-        points: [LatLng(33.7200, 73.0600), LatLng(33.6938, 73.0145)],
+        patterns: <PatternItem>[PatternItem.dash(20), PatternItem.gap(10)],
+        points: const [LatLng(33.7200, 73.0600), LatLng(33.6938, 73.0145)],
       ));
     }
     return lines;
@@ -203,11 +203,11 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
     final stats = _showAfterState ? [
       {'label': 'Congestion', 'value': '32%', 'icon': Icons.traffic, 'color': AppTheme.successGreen},
       {'label': 'Routes Active', 'value': '2', 'icon': Icons.alt_route, 'color': AppTheme.glowBlue},
-      {'label': 'Units', 'value': '6', 'icon': Icons.local_ambulance, 'color': AppTheme.electricBlue},
+      {'label': 'Units', 'value': '6', 'icon': Icons.medical_services, 'color': AppTheme.electricBlue},
     ] : [
       {'label': 'Congestion', 'value': '88%', 'icon': Icons.traffic, 'color': AppTheme.alertRed},
       {'label': 'Blocked', 'value': '3', 'icon': Icons.block, 'color': AppTheme.alertOrange},
-      {'label': 'Units', 'value': '0', 'icon': Icons.local_ambulance, 'color': AppTheme.textMuted},
+      {'label': 'Units', 'value': '0', 'icon': Icons.medical_services, 'color': AppTheme.textMuted},
     ];
 
     return Container(

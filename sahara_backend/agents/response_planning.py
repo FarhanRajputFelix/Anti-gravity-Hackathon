@@ -159,7 +159,7 @@ def run(context: CrisisContext) -> CrisisContext:
         tool_calls=tool_calls,
         decision=f"Generated {len(actions)}-action coordinated response plan. Departments notified: {len(departments)}. First action priority: {actions[0].responsible_department}.",
         confidence=round(confidence * 0.92, 3),
-        output={"action_count": len(actions), "departments": departments, "actions": [a.dict() for a in actions]},
+        output={"action_count": len(actions), "departments": departments, "actions": [a.model_dump() for a in actions]},
         execution_time_ms=elapsed,
         fallback_triggered=False,
     )

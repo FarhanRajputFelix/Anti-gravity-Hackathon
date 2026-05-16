@@ -1,6 +1,6 @@
 """Quick end-to-end pipeline test for SAHARA AI backend."""
-import sys, asyncio
-sys.path.insert(0, '.')
+import os, sys, asyncio
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from models import CrisisSignal
 from orchestrator import AntigravityOrchestrator
 
