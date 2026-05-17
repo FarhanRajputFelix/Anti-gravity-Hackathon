@@ -19,6 +19,13 @@ class _CrisisInputScreenState extends State<CrisisInputScreen> with TickerProvid
   String? _errorMessage;
   late AnimationController _loadingController;
 
+  // Real-time agent progress from orchestrator
+  int _currentAgentIndex = 0;
+  String _currentAgentName = '';
+  String _currentAgentStatus = '';
+  double _overallProgress = 0.0;
+  final List<_AgentStep> _completedSteps = [];
+
   final List<Map<String, dynamic>> _scenarios = [
     {
       'key': 'islamabad_flood',
@@ -40,6 +47,13 @@ class _CrisisInputScreenState extends State<CrisisInputScreen> with TickerProvid
       'text': 'Bada accident hua hai Shahrah-e-Quaid-e-Azam pe. Teen gaariyan takra gayi hain, road completely block hai. Ambulance aur traffic police chahiye.',
       'source': 'social_media',
       'location': 'Shahrah-e-Quaid-e-Azam, Lahore',
+    },
+    {
+      'key': 'quetta_earthquake',
+      'label': '🏚️ Quetta Earthquake',
+      'text': 'Earthquake felt in Quetta, magnitude approximately 5.2. Buildings cracked in Satellite Town area. People running out of homes. Need immediate rescue.',
+      'source': 'news_agency',
+      'location': 'Satellite Town, Quetta',
     },
   ];
 
@@ -63,16 +77,38 @@ class _CrisisInputScreenState extends State<CrisisInputScreen> with TickerProvid
       setState(() => _errorMessage = 'Please enter a crisis report or load a sample scenario.');
       return;
     }
-    setState(() { _isAnalyzing = true; _errorMessage = null; });
+    setState(() {
+      _isAnalyzing = true;
+      _errorMessage = null;
+      _currentAgentIndex = 0;
+      _currentAgentName = '';
+      _currentAgentStatus = '';
+      _overallProgress = 0.0;
+      _completedSteps.clear();
+    });
 
     try {
       final result = await ApiService.analyzeSignal(
         text: _textController.text.trim(),
         source: _selectedSource,
+        onProgress: (agentIndex, agentName, status, progress) {
+          if (mounted) {
+            setState(() {
+              _currentAgentIndex = agentIndex;
+              _currentAgentName = agentName;
+              _currentAgentStatus = status;
+              _overallProgress = progress;
+              // Track completed agents
+              if (status == 'Complete ✓' && !_completedSteps.any((s) => s.index == agentIndex)) {
+                _completedSteps.add(_AgentStep(index: agentIndex, name: agentName));
+              }
+            });
+          }
+        },
       );
       widget.onAnalysisComplete(result);
     } catch (e) {
-      setState(() => _errorMessage = 'Connection error: ${e.toString().replaceAll('Exception: ', '')}');
+      setState(() => _errorMessage = 'Analysis failed: ${e.toString().replaceAll('Exception: ', '')}');
     } finally {
       if (mounted) setState(() => _isAnalyzing = false);
     }
@@ -85,6 +121,35 @@ class _CrisisInputScreenState extends State<CrisisInputScreen> with TickerProvid
       appBar: AppBar(
         title: const Text('Crisis Input'),
         backgroundColor: AppTheme.deepNavy,
+        actions: [
+          Container(
+            margin: const EdgeInsets.only(right: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            decoration: BoxDecoration(
+              color: ApiService.useMockData
+                  ? AppTheme.alertOrange.withOpacity(0.15)
+                  : AppTheme.successGreen.withOpacity(0.15),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: ApiService.useMockData
+                    ? AppTheme.alertOrange.withOpacity(0.4)
+                    : AppTheme.successGreen.withOpacity(0.4),
+              ),
+            ),
+            child: GestureDetector(
+              onTap: () => setState(() => ApiService.useMockData = !ApiService.useMockData),
+              child: Text(
+                ApiService.useMockData ? 'DEMO MODE' : 'LIVE MODE',
+                style: TextStyle(
+                  color: ApiService.useMockData ? AppTheme.alertOrange : AppTheme.successGreen,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.5,
+                ),
+              ),
+            ),
+          ),
+        ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(1),
           child: Container(height: 1, color: AppTheme.navyBorder),
@@ -176,6 +241,13 @@ class _CrisisInputScreenState extends State<CrisisInputScreen> with TickerProvid
   }
 
   Widget _buildSourceSelector() {
+    final sourceIcons = {
+      'citizen_report': Icons.person,
+      'weather_api': Icons.cloud,
+      'traffic_api': Icons.traffic,
+      'social_media': Icons.share,
+      'news_agency': Icons.newspaper,
+    };
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -195,9 +267,16 @@ class _CrisisInputScreenState extends State<CrisisInputScreen> with TickerProvid
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(color: selected ? AppTheme.electricBlue : AppTheme.navyBorder),
                 ),
-                child: Text(
-                  s.replaceAll('_', ' '),
-                  style: TextStyle(color: selected ? AppTheme.electricBlue : AppTheme.textSecondary, fontSize: 12, fontWeight: selected ? FontWeight.w600 : FontWeight.w400),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(sourceIcons[s] ?? Icons.input, color: selected ? AppTheme.electricBlue : AppTheme.textMuted, size: 14),
+                    const SizedBox(width: 6),
+                    Text(
+                      s.replaceAll('_', ' '),
+                      style: TextStyle(color: selected ? AppTheme.electricBlue : AppTheme.textSecondary, fontSize: 12, fontWeight: selected ? FontWeight.w600 : FontWeight.w400),
+                    ),
+                  ],
                 ),
               ),
             );
@@ -211,7 +290,20 @@ class _CrisisInputScreenState extends State<CrisisInputScreen> with TickerProvid
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Load Demo Scenario', style: TextStyle(color: AppTheme.textSecondary, fontSize: 13, fontWeight: FontWeight.w500)),
+        Row(
+          children: [
+            Text('Load Demo Scenario', style: TextStyle(color: AppTheme.textSecondary, fontSize: 13, fontWeight: FontWeight.w500)),
+            const Spacer(),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: AppTheme.cyanAccent.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text('${_scenarios.length} scenarios', style: TextStyle(color: AppTheme.cyanAccent, fontSize: 10)),
+            ),
+          ],
+        ),
         const SizedBox(height: 10),
         ..._scenarios.map((s) => GestureDetector(
           onTap: () {
@@ -233,6 +325,9 @@ class _CrisisInputScreenState extends State<CrisisInputScreen> with TickerProvid
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(s['label'] as String, style: TextStyle(color: AppTheme.textPrimary, fontSize: 14, fontWeight: FontWeight.w600)),
+                      const SizedBox(height: 2),
+                      Text(s['location'] as String, style: TextStyle(color: AppTheme.cyanAccent, fontSize: 11)),
+                      const SizedBox(height: 2),
                       Text(s['text'] as String, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: AppTheme.textSecondary, fontSize: 12)),
                     ],
                   ),
@@ -246,7 +341,7 @@ class _CrisisInputScreenState extends State<CrisisInputScreen> with TickerProvid
               ],
             ),
           ),
-        )).toList(),
+        )),
       ],
     );
   }
@@ -261,6 +356,10 @@ class _CrisisInputScreenState extends State<CrisisInputScreen> with TickerProvid
           const Icon(Icons.error_outline, color: AppTheme.alertRed, size: 16),
           const SizedBox(width: 8),
           Expanded(child: Text(_errorMessage!, style: TextStyle(color: AppTheme.alertRed, fontSize: 12))),
+          GestureDetector(
+            onTap: () => setState(() => _errorMessage = null),
+            child: const Icon(Icons.close, color: AppTheme.alertRed, size: 14),
+          ),
         ],
       ),
     );
@@ -283,6 +382,12 @@ class _CrisisInputScreenState extends State<CrisisInputScreen> with TickerProvid
             const Icon(Icons.analytics_outlined, color: Colors.white, size: 22),
             const SizedBox(width: 10),
             Text('Run Antigravity Analysis', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700)),
+            const SizedBox(width: 10),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(color: Colors.white.withOpacity(0.2), borderRadius: BorderRadius.circular(10)),
+              child: Text('6 Agents', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w600)),
+            ),
           ],
         ),
       ),
@@ -290,72 +395,163 @@ class _CrisisInputScreenState extends State<CrisisInputScreen> with TickerProvid
   }
 
   Widget _buildLoadingOverlay() {
+    final agentNames = [
+      'Signal Ingestion',
+      'Verification',
+      'Severity Analysis',
+      'Response Planning',
+      'Execution Simulation',
+      'Fallback & Recovery',
+    ];
+
     return Container(
-      color: AppTheme.midnight.withOpacity(0.92),
+      color: AppTheme.midnight.withOpacity(0.95),
       child: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            SizedBox(
-              width: 80, height: 80,
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  AnimatedBuilder(
-                    animation: _loadingController,
-                    builder: (_, __) => Transform.rotate(
-                      angle: _loadingController.value * 6.28,
-                      child: Container(
-                        width: 80, height: 80,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          gradient: SweepGradient(colors: [AppTheme.electricBlue, AppTheme.electricBlue.withOpacity(0)]),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Animated spinner with agent index
+              SizedBox(
+                width: 90, height: 90,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    AnimatedBuilder(
+                      animation: _loadingController,
+                      builder: (_, __) => Transform.rotate(
+                        angle: _loadingController.value * 6.28,
+                        child: Container(
+                          width: 90, height: 90,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            gradient: SweepGradient(colors: [AppTheme.electricBlue, AppTheme.electricBlue.withOpacity(0)]),
+                          ),
                         ),
                       ),
                     ),
+                    Container(
+                      width: 72, height: 72,
+                      decoration: const BoxDecoration(shape: BoxShape.circle, color: AppTheme.midnight),
+                      child: Center(
+                        child: Text(
+                          '$_currentAgentIndex/6',
+                          style: TextStyle(color: AppTheme.electricBlue, fontSize: 20, fontWeight: FontWeight.w700),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 24),
+              Text('Antigravity Orchestration', style: TextStyle(color: AppTheme.textPrimary, fontSize: 20, fontWeight: FontWeight.w700)),
+              const SizedBox(height: 4),
+              Text(
+                _currentAgentName.isNotEmpty ? _currentAgentName : 'Initializing pipeline...',
+                style: TextStyle(color: AppTheme.electricBlue, fontSize: 14, fontWeight: FontWeight.w500),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                _currentAgentStatus,
+                style: TextStyle(color: AppTheme.textSecondary, fontSize: 12),
+              ),
+
+              const SizedBox(height: 20),
+
+              // Progress bar
+              Container(
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppTheme.navyBorder,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: FractionallySizedBox(
+                    widthFactor: _overallProgress.clamp(0.0, 1.0),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(colors: [Color(0xFF1E6FFF), Color(0xFF00E5FF)]),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
                   ),
-                  Container(
-                    width: 65, height: 65,
-                    decoration: const BoxDecoration(shape: BoxShape.circle, color: AppTheme.midnight),
-                    child: const Icon(Icons.hub_outlined, color: AppTheme.electricBlue, size: 28),
+                ),
+              ),
+
+              const SizedBox(height: 24),
+
+              // Agent steps with real-time status
+              ...agentNames.asMap().entries.map((e) {
+                final i = e.key;
+                final agentName = e.value;
+                final isCompleted = _completedSteps.any((s) => s.index == i + 1);
+                final isActive = _currentAgentIndex == i + 1 && !isCompleted;
+                final isPending = _currentAgentIndex < i + 1;
+
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 3),
+                  child: Row(
+                    children: [
+                      SizedBox(
+                        width: 18,
+                        child: isCompleted
+                            ? const Icon(Icons.check_circle, color: AppTheme.successGreen, size: 16)
+                            : isActive
+                                ? SizedBox(
+                                    width: 14, height: 14,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: AppTheme.electricBlue,
+                                    ),
+                                  )
+                                : Icon(Icons.radio_button_unchecked, color: AppTheme.textMuted, size: 14),
+                      ),
+                      const SizedBox(width: 10),
+                      Text(
+                        'Agent ${i + 1}: $agentName',
+                        style: TextStyle(
+                          color: isCompleted
+                              ? AppTheme.successGreen
+                              : isActive
+                                  ? AppTheme.textPrimary
+                                  : AppTheme.textMuted,
+                          fontSize: 12,
+                          fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
+                        ),
+                      ),
+                      if (isActive && _currentAgentStatus.isNotEmpty) ...[
+                        const Spacer(),
+                        Text(
+                          _currentAgentStatus,
+                          style: TextStyle(color: AppTheme.cyanAccent, fontSize: 10),
+                        ),
+                      ],
+                    ],
                   ),
+                );
+              }),
+
+              const SizedBox(height: 16),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text('Powered by ', style: TextStyle(color: AppTheme.textMuted, fontSize: 11)),
+                  Text('Google Antigravity', style: TextStyle(color: AppTheme.electricBlue, fontSize: 11, fontWeight: FontWeight.w600)),
                 ],
               ),
-            ),
-            const SizedBox(height: 24),
-            Text('Antigravity Reasoning...', style: TextStyle(color: AppTheme.textPrimary, fontSize: 18, fontWeight: FontWeight.w600)),
-            const SizedBox(height: 8),
-            Text('6 agents analyzing crisis signal', style: TextStyle(color: AppTheme.textSecondary, fontSize: 13)),
-            const SizedBox(height: 24),
-            _buildProgressSteps(),
-          ],
+            ],
+          ),
         ),
       ),
     );
   }
+}
 
-  Widget _buildProgressSteps() {
-    final steps = ['Signal Ingestion', 'Verification', 'Severity Analysis', 'Response Planning', 'Simulation', 'Fallback Check'];
-    return Column(
-      children: steps.map((s) => AnimatedBuilder(
-        animation: _loadingController,
-        builder: (_, __) {
-          final idx = steps.indexOf(s);
-          final progress = (_loadingController.value * steps.length);
-          final isActive = idx <= progress;
-          return Padding(
-            padding: const EdgeInsets.symmetric(vertical: 2),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(isActive ? Icons.check_circle : Icons.radio_button_unchecked, color: isActive ? AppTheme.successGreen : AppTheme.textMuted, size: 14),
-                const SizedBox(width: 8),
-                Text(s, style: TextStyle(color: isActive ? AppTheme.textPrimary : AppTheme.textMuted, fontSize: 12)),
-              ],
-            ),
-          );
-        },
-      )).toList(),
-    );
-  }
+class _AgentStep {
+  final int index;
+  final String name;
+  _AgentStep({required this.index, required this.name});
 }

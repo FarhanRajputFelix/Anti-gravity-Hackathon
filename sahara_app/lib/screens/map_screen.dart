@@ -230,6 +230,19 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
     );
   }
 
-  // Dark map style
-  static const String? _mapStyle = null; // Use null for default; pass JSON string for dark style
+  // Dark map style — matches SAHARA AI midnight theme
+  static const String _mapStyle = '''[
+    {"elementType":"geometry","stylers":[{"color":"#0d1117"}]},
+    {"elementType":"labels.icon","stylers":[{"visibility":"off"}]},
+    {"elementType":"labels.text.fill","stylers":[{"color":"#5a7599"}]},
+    {"elementType":"labels.text.stroke","stylers":[{"color":"#0d1117"}]},
+    {"featureType":"administrative","elementType":"geometry","stylers":[{"color":"#1a3050"}]},
+    {"featureType":"poi","elementType":"geometry","stylers":[{"color":"#0f1d30"}]},
+    {"featureType":"poi.park","elementType":"geometry","stylers":[{"color":"#0a1a2e"}]},
+    {"featureType":"road","elementType":"geometry","stylers":[{"color":"#1a2d45"}]},
+    {"featureType":"road","elementType":"geometry.stroke","stylers":[{"color":"#0f1d30"}]},
+    {"featureType":"road.highway","elementType":"geometry","stylers":[{"color":"#1e3a5f"}]},
+    {"featureType":"transit","elementType":"geometry","stylers":[{"color":"#0f1d30"}]},
+    {"featureType":"water","elementType":"geometry","stylers":[{"color":"#050e1f"}]}
+  ]''';
 }

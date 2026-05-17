@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SAHARA AI - Command Center</title>
+    <link rel="stylesheet" href="dashboard.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- HEADER -->
+    <header class="header">
+        <div class="header-left">
+            <div class="logo-icon">&#9632;</div>
+            <div>
+                <h1 class="logo-text">SAHARA AI</h1>
+                <p class="tagline">Antigravity Command Center</p>
+            </div>
+        </div>
+        <div class="header-right">
+            <span class="badge badge-gemini" id="geminiStatus">GEMINI: CHECKING...</span>
+            <span class="badge badge-online" id="systemStatus">SYSTEM: ONLINE</span>
+        </div>
+    </header>
+
+    <main class="main">
+        <!-- LEFT PANEL: Pipeline + Workflow -->
+        <section class="panel panel-pipeline">
+            <h2 class="panel-title">Agent Pipeline</h2>
+            <div id="pipelineContainer" class="pipeline"></div>
+        </section>
+
+        <!-- CENTER PANEL: Live Analysis -->
+        <section class="panel panel-center">
+            <h2 class="panel-title">Quick Analysis</h2>
+            <div class="input-group">
+                <textarea id="crisisInput" placeholder="Enter crisis signal (Urdu / English)... e.g. G-10 mein pani bhar gaya hai" rows="3"></textarea>
+                <button id="analyzeBtn" class="btn btn-primary" onclick="runAnalysis()">Analyze Signal</button>
+            </div>
+            <div class="scenarios">
+                <button class="btn btn-ghost" onclick="loadScenario('islamabad')">Islamabad Flood</button>
+                <button class="btn btn-ghost" onclick="loadScenario('karachi')">Karachi Heatwave</button>
+                <button class="btn btn-ghost" onclick="loadScenario('lahore')">Lahore Accident</button>
+            </div>
+
+            <div id="resultPanel" class="result-panel hidden">
+                <div class="result-header">
+                    <h3 id="resultTitle">--</h3>
+                    <span class="badge" id="resultSeverity">--</span>
+                </div>
+                <div class="metrics-row">
+                    <div class="metric"><span class="metric-val" id="mConfidence">--</span><span class="metric-label">Confidence</span></div>
+                    <div class="metric"><span class="metric-val" id="mAgents">--</span><span class="metric-label">Agents</span></div>
+                    <div class="metric"><span class="metric-val" id="mActions">--</span><span class="metric-label">Actions</span></div>
+                    <div class="metric"><span class="metric-val" id="mTime">--</span><span class="metric-label">Time (ms)</span></div>
+                </div>
+                <div id="workflowGraph" class="workflow-graph"></div>
+            </div>
+        </section>
+
+        <!-- RIGHT PANEL: Agent Traces + Logs -->
+        <section class="panel panel-logs">
+            <h2 class="panel-title">Agent Reasoning Logs</h2>
+            <div id="traceContainer" class="trace-container">
+                <p class="muted">Run an analysis to see agent traces...</p>
+            </div>
+            <h2 class="panel-title" style="margin-top:1.5rem;">Recent Analyses</h2>
+            <div id="logsContainer" class="logs-container">
+                <p class="muted">No analyses yet.</p>
+            </div>
+        </section>
+    </main>
+
+    <footer class="footer">
+        <span>SAHARA AI v2.0 &mdash; Google Antigravity Hackathon 2026 &mdash; Challenge 3: CIRO</span>
+    </footer>
+
+    <script src="dashboard.js"></script>
+</body>
+</html>

@@ -66,5 +66,10 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>SAHARA AI needs your location to show nearby crisis events and provide accurate emergency response.</string>
+	<key>NSLocationAlwaysUsageDescription</key>
+	<string>SAHARA AI uses background location to monitor crisis events near you.</string>
 </dict>
 </plist>
+

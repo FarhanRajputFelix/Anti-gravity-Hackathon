@@ -70,6 +70,7 @@ class AgentTrace(BaseModel):
     execution_time_ms: int
     fallback_triggered: bool = False
     fallback_reason: Optional[str] = None
+    gemini_enhanced: bool = False
 
 
 # ─────────────────────────────────────────
@@ -152,6 +153,17 @@ class CrisisContext(BaseModel):
 # API RESPONSE MODELS
 # ─────────────────────────────────────────
 
+class WorkflowStep(BaseModel):
+    step: int
+    agent_name: str
+    status: str = "PENDING"  # PENDING, RUNNING, COMPLETE, SKIPPED, FAILED
+    started_at: Optional[str] = None
+    completed_at: Optional[str] = None
+    tool_calls: List[str] = []
+    handoff_to: Optional[str] = None
+    gemini_used: bool = False
+
+
 class AnalysisResult(BaseModel):
     crisis_id: str
     status: str
@@ -168,6 +180,7 @@ class AnalysisResult(BaseModel):
     total_execution_time_ms: int
     system_message: str
     map_data: Dict[str, Any] = {}
+    orchestration_workflow: List[WorkflowStep] = []
 
 
 class SimulateRequest(BaseModel):

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'theme/app_theme.dart';
+import 'screens/splash_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/crisis_input_screen.dart';
 import 'screens/agent_trace_screen.dart';
@@ -15,6 +16,10 @@ void main() {
     statusBarIconBrightness: Brightness.light,
     systemNavigationBarColor: AppTheme.deepNavy,
   ));
+  SystemChrome.setPreferredOrientations([
+    DeviceOrientation.portraitUp,
+    DeviceOrientation.portraitDown,
+  ]);
   runApp(const SaharaApp());
 }
 
@@ -27,8 +32,29 @@ class SaharaApp extends StatelessWidget {
       title: 'SAHARA AI',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.theme,
-      home: const MainShell(),
+      home: const _AppEntry(),
     );
+  }
+}
+
+class _AppEntry extends StatefulWidget {
+  const _AppEntry();
+
+  @override
+  State<_AppEntry> createState() => _AppEntryState();
+}
+
+class _AppEntryState extends State<_AppEntry> {
+  bool _showSplash = true;
+
+  @override
+  Widget build(BuildContext context) {
+    if (_showSplash) {
+      return SplashScreen(
+        onComplete: () => setState(() => _showSplash = false),
+      );
+    }
+    return const MainShell();
   }
 }
 
@@ -42,10 +68,16 @@ class MainShell extends StatefulWidget {
 class _MainShellState extends State<MainShell> {
   int _currentIndex = 0;
   Map<String, dynamic>? _analysisResult;
+  // Track analysis history for crisis history feature
+  final List<Map<String, dynamic>> _analysisHistory = [];
 
   void _onAnalysisComplete(Map<String, dynamic> result) {
     setState(() {
       _analysisResult = result;
+      _analysisHistory.insert(0, {
+        ...result,
+        'analyzed_at': DateTime.now().toIso8601String(),
+      });
       _currentIndex = 2; // Go to Agent Trace screen
     });
   }
@@ -137,7 +169,6 @@ class _MainShellState extends State<MainShell> {
                           color: isActive ? AppTheme.electricBlue : AppTheme.textMuted,
                           fontSize: 10,
                           fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
-                          fontFamily: 'Roboto',
                         ),
                       ),
                     ],
