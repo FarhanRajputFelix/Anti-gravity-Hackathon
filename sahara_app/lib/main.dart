@@ -89,7 +89,7 @@ class _MainShellState extends State<MainShell> {
   @override
   Widget build(BuildContext context) {
     final screens = [
-      HomeScreen(onNavigate: _navigateTo),
+      HomeScreen(onNavigate: _navigateTo, history: _analysisHistory),
       CrisisInputScreen(onAnalysisComplete: _onAnalysisComplete),
       AgentTraceScreen(analysisResult: _analysisResult),
       MapScreen(analysisResult: _analysisResult),

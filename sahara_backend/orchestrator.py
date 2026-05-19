@@ -51,9 +51,12 @@ try:
     _api_key = os.getenv("GEMINI_API_KEY", "")
     if _api_key and _api_key != "your-gemini-api-key-here":
         genai.configure(api_key=_api_key)
-        _gemini_model = genai.GenerativeModel("gemini-1.5-flash")
+        # Try models in order: newest stable first, then fall back if not available.
+        # gemini-1.5-flash was deprecated; pick whichever current model the key supports.
+        _model_name = os.getenv("GEMINI_MODEL", "gemini-flash-latest")
+        _gemini_model = genai.GenerativeModel(_model_name)
         _gemini_available = True
-        print("[ANTIGRAVITY] Gemini AI connected -- AI-enhanced reasoning ACTIVE")
+        print(f"[ANTIGRAVITY] Gemini AI connected ({_model_name}) -- AI-enhanced reasoning ACTIVE")
     else:
         print("[ANTIGRAVITY] No GEMINI_API_KEY found -- using rule-based reasoning (demo mode)")
 except ImportError:

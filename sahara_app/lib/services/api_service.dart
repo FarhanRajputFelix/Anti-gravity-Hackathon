@@ -1,6 +1,7 @@
 /// SAHARA AI — Unified API Service
 /// Uses the in-app Antigravity Orchestrator for analysis (mock-first),
 /// with optional HTTP fallback to the FastAPI backend.
+library;
 
 import 'dart:convert';
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -13,7 +14,8 @@ class ApiService {
   static bool useMockData = true;
 
   /// The in-app Antigravity orchestrator
-  static final AntigravityOrchestrator _orchestrator = AntigravityOrchestrator();
+  static final AntigravityOrchestrator _orchestrator =
+      AntigravityOrchestrator();
 
   /// Override at build time:
   ///   flutter run --dart-define=SAHARA_API_BASE_URL=https://my-host.com
@@ -48,16 +50,18 @@ class ApiService {
 
     // Try live backend, fall back to orchestrator on failure
     try {
-      final response = await http.post(
-        Uri.parse('$baseUrl/api/analyze'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'text': text,
-          'source': source,
-          if (locationHint != null) 'location_hint': locationHint,
-          'timestamp': DateTime.now().toIso8601String(),
-        }),
-      ).timeout(const Duration(seconds: 15));
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/api/analyze'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'text': text,
+              'source': source,
+              if (locationHint != null) 'location_hint': locationHint,
+              'timestamp': DateTime.now().toIso8601String(),
+            }),
+          )
+          .timeout(const Duration(seconds: 15));
 
       if (response.statusCode == 200) {
         return jsonDecode(response.body) as Map<String, dynamic>;
@@ -81,9 +85,11 @@ class ApiService {
 
   static Future<List<Map<String, dynamic>>> getLogs() async {
     try {
-      final response = await http.get(
-        Uri.parse('$baseUrl/api/logs'),
-      ).timeout(const Duration(seconds: 10));
+      final response = await http
+          .get(
+            Uri.parse('$baseUrl/api/logs'),
+          )
+          .timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200) {
         final body = jsonDecode(response.body) as Map<String, dynamic>;
@@ -95,9 +101,11 @@ class ApiService {
 
   static Future<List<Map<String, dynamic>>> getSignalFeed() async {
     try {
-      final response = await http.get(
-        Uri.parse('$baseUrl/api/feed'),
-      ).timeout(const Duration(seconds: 10));
+      final response = await http
+          .get(
+            Uri.parse('$baseUrl/api/feed'),
+          )
+          .timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200) {
         final body = jsonDecode(response.body) as Map<String, dynamic>;
@@ -108,9 +116,11 @@ class ApiService {
   }
 
   static Future<Map<String, dynamic>> getCrisis(String crisisId) async {
-    final response = await http.get(
-      Uri.parse('$baseUrl/api/crisis/$crisisId'),
-    ).timeout(const Duration(seconds: 10));
+    final response = await http
+        .get(
+          Uri.parse('$baseUrl/api/crisis/$crisisId'),
+        )
+        .timeout(const Duration(seconds: 10));
 
     if (response.statusCode == 200) {
       return jsonDecode(response.body) as Map<String, dynamic>;
@@ -120,9 +130,11 @@ class ApiService {
 
   static Future<List<Map<String, dynamic>>> getScenarios() async {
     try {
-      final response = await http.get(
-        Uri.parse('$baseUrl/api/scenarios'),
-      ).timeout(const Duration(seconds: 10));
+      final response = await http
+          .get(
+            Uri.parse('$baseUrl/api/scenarios'),
+          )
+          .timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200) {
         final body = jsonDecode(response.body) as Map<String, dynamic>;

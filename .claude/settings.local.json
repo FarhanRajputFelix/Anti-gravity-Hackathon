@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(/c/src/flutter/bin/flutter.bat build *)",
+      "Bash(grep -E \"^lib[\\\\\\\\\\\\\\\\/]|^Error|Error:\")",
+      "Bash(/c/src/flutter/bin/flutter.bat clean *)",
+      "Bash(/c/src/flutter/bin/flutter.bat pub *)"
+    ]
+  }
+}

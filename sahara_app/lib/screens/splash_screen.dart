@@ -1,5 +1,6 @@
 /// SAHARA AI — Cinematic Splash Screen
 /// 3-second animated intro with shield logo, tagline, and agent initialization.
+library;
 
 import 'dart:math';
 import 'package:flutter/material.dart';
@@ -13,7 +14,8 @@ class SplashScreen extends StatefulWidget {
   State<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMixin {
+class _SplashScreenState extends State<SplashScreen>
+    with TickerProviderStateMixin {
   late AnimationController _logoController;
   late AnimationController _pulseController;
   late AnimationController _textController;
@@ -38,20 +40,30 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
     super.initState();
 
     // Logo animation
-    _logoController = AnimationController(vsync: this, duration: const Duration(milliseconds: 1200));
-    _logoScale = Tween<double>(begin: 0.3, end: 1.0).animate(CurvedAnimation(parent: _logoController, curve: Curves.elasticOut));
-    _logoOpacity = Tween<double>(begin: 0.0, end: 1.0).animate(CurvedAnimation(parent: _logoController, curve: const Interval(0.0, 0.5, curve: Curves.easeIn)));
+    _logoController = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 1200));
+    _logoScale = Tween<double>(begin: 0.3, end: 1.0).animate(
+        CurvedAnimation(parent: _logoController, curve: Curves.elasticOut));
+    _logoOpacity = Tween<double>(begin: 0.0, end: 1.0).animate(CurvedAnimation(
+        parent: _logoController,
+        curve: const Interval(0.0, 0.5, curve: Curves.easeIn)));
 
     // Pulse glow
-    _pulseController = AnimationController(vsync: this, duration: const Duration(milliseconds: 1500))..repeat(reverse: true);
+    _pulseController = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 1500))
+      ..repeat(reverse: true);
 
     // Text fade
-    _textController = AnimationController(vsync: this, duration: const Duration(milliseconds: 800));
-    _textOpacity = Tween<double>(begin: 0.0, end: 1.0).animate(CurvedAnimation(parent: _textController, curve: Curves.easeIn));
+    _textController = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 800));
+    _textOpacity = Tween<double>(begin: 0.0, end: 1.0).animate(
+        CurvedAnimation(parent: _textController, curve: Curves.easeIn));
 
     // Agent count-up
-    _agentController = AnimationController(vsync: this, duration: const Duration(milliseconds: 600));
-    _agentOpacity = Tween<double>(begin: 0.0, end: 1.0).animate(_agentController);
+    _agentController = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 600));
+    _agentOpacity =
+        Tween<double>(begin: 0.0, end: 1.0).animate(_agentController);
 
     _runSequence();
   }
@@ -104,7 +116,8 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
             children: [
               // ── Animated Logo ──
               AnimatedBuilder(
-                animation: Listenable.merge([_logoController, _pulseController]),
+                animation:
+                    Listenable.merge([_logoController, _pulseController]),
                 builder: (_, __) => Opacity(
                   opacity: _logoOpacity.value,
                   child: Transform.scale(
@@ -117,13 +130,15 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
                         shape: BoxShape.circle,
                         boxShadow: [
                           BoxShadow(
-                            color: AppTheme.electricBlue.withOpacity(0.3 + _pulseController.value * 0.3),
+                            color: AppTheme.electricBlue.withOpacity(
+                                0.3 + _pulseController.value * 0.3),
                             blurRadius: 40 + _pulseController.value * 20,
                             spreadRadius: 5 + _pulseController.value * 10,
                           ),
                         ],
                       ),
-                      child: const Icon(Icons.shield_outlined, color: Colors.white, size: 56),
+                      child: const Icon(Icons.shield_outlined,
+                          color: Colors.white, size: 56),
                     ),
                   ),
                 ),
@@ -146,12 +161,14 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
                           fontWeight: FontWeight.w800,
                           letterSpacing: 4,
                           shadows: [
-                            Shadow(color: AppTheme.electricBlue.withOpacity(0.5), blurRadius: 20),
+                            Shadow(
+                                color: AppTheme.electricBlue.withOpacity(0.5),
+                                blurRadius: 20),
                           ],
                         ),
                       ),
                       const SizedBox(height: 8),
-                      Text(
+                      const Text(
                         "Pakistan's First Agentic Urban Crisis\nResponse Operating System",
                         textAlign: TextAlign.center,
                         style: TextStyle(
@@ -176,11 +193,13 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
                   child: Column(
                     children: [
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 20, vertical: 10),
                         decoration: BoxDecoration(
                           color: AppTheme.electricBlue.withOpacity(0.1),
                           borderRadius: BorderRadius.circular(30),
-                          border: Border.all(color: AppTheme.electricBlue.withOpacity(0.3)),
+                          border: Border.all(
+                              color: AppTheme.electricBlue.withOpacity(0.3)),
                         ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
@@ -190,7 +209,9 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
                               height: 14,
                               child: CircularProgressIndicator(
                                 strokeWidth: 2,
-                                color: _agentCount >= 6 ? AppTheme.successGreen : AppTheme.electricBlue,
+                                color: _agentCount >= 6
+                                    ? AppTheme.successGreen
+                                    : AppTheme.electricBlue,
                                 value: _agentCount >= 6 ? 1.0 : null,
                               ),
                             ),
@@ -200,7 +221,9 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
                                   ? 'Antigravity Engine Ready'
                                   : 'Initializing Agent $_agentCount/6...',
                               style: TextStyle(
-                                color: _agentCount >= 6 ? AppTheme.successGreen : AppTheme.electricBlue,
+                                color: _agentCount >= 6
+                                    ? AppTheme.successGreen
+                                    : AppTheme.electricBlue,
                                 fontSize: 12,
                                 fontWeight: FontWeight.w600,
                                 letterSpacing: 0.5,
@@ -211,27 +234,29 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
                       ),
                       if (_agentCount > 0) ...[
                         const SizedBox(height: 16),
-                        ...List.generate(min(_agentCount, 6), (i) => Padding(
-                          padding: const EdgeInsets.only(bottom: 4),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                Icons.check_circle,
-                                color: AppTheme.successGreen,
-                                size: 12,
-                              ),
-                              const SizedBox(width: 6),
-                              Text(
-                                _agentNames[i],
-                                style: TextStyle(
-                                  color: AppTheme.textSecondary,
-                                  fontSize: 11,
-                                ),
-                              ),
-                            ],
-                          ),
-                        )),
+                        ...List.generate(
+                            min(_agentCount, 6),
+                            (i) => Padding(
+                                  padding: const EdgeInsets.only(bottom: 4),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Icon(
+                                        Icons.check_circle,
+                                        color: AppTheme.successGreen,
+                                        size: 12,
+                                      ),
+                                      const SizedBox(width: 6),
+                                      Text(
+                                        _agentNames[i],
+                                        style: const TextStyle(
+                                          color: AppTheme.textSecondary,
+                                          fontSize: 11,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                )),
                       ],
                     ],
                   ),
@@ -245,11 +270,17 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
                 animation: _textController,
                 builder: (_, __) => Opacity(
                   opacity: _textOpacity.value * 0.6,
-                  child: Row(
+                  child: const Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text('Powered by ', style: TextStyle(color: AppTheme.textMuted, fontSize: 11)),
-                      Text('Google Antigravity', style: TextStyle(color: AppTheme.electricBlue, fontSize: 11, fontWeight: FontWeight.w600)),
+                      Text('Powered by ',
+                          style: TextStyle(
+                              color: AppTheme.textMuted, fontSize: 11)),
+                      Text('Google Antigravity',
+                          style: TextStyle(
+                              color: AppTheme.electricBlue,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600)),
                     ],
                   ),
                 ),

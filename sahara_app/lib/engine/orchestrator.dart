@@ -3,6 +3,7 @@
 /// passing shared memory between them and emitting real-time progress.
 ///
 /// This is THE Antigravity orchestration layer that judges will evaluate.
+library;
 
 import 'agent_memory.dart';
 import 'base_agent.dart';
@@ -73,7 +74,8 @@ class AntigravityOrchestrator {
         },
       );
 
-      onProgress?.call(i + 1, agent.name, 'Complete ✓', baseProgress + progressPerAgent);
+      onProgress?.call(
+          i + 1, agent.name, 'Complete ✓', baseProgress + progressPerAgent);
     }
 
     pipelineSw.stop();
@@ -85,21 +87,25 @@ class AntigravityOrchestrator {
       for (final trace in memory.agentTraces) {
         sum += trace.confidence;
       }
-      memory.overallConfidence = (sum / memory.agentTraces.length) * memory.systemResilience;
+      memory.overallConfidence =
+          (sum / memory.agentTraces.length) * memory.systemResilience;
     }
 
-    onProgress?.call(agents.length, 'Pipeline Complete', 'All agents finished', 1.0);
+    onProgress?.call(
+        agents.length, 'Pipeline Complete', 'All agents finished', 1.0);
 
     return memory.toResult();
   }
 
   /// Get the agent pipeline description (for visualization)
   List<Map<String, String>> getPipelineDescription() {
-    return agents.map((a) => {
-      'name': a.name,
-      'description': a.description,
-      'tools': a.tools.join(', '),
-      'index': a.index.toString(),
-    }).toList();
+    return agents
+        .map((a) => {
+              'name': a.name,
+              'description': a.description,
+              'tools': a.tools.join(', '),
+              'index': a.index.toString(),
+            })
+        .toList();
   }
 }

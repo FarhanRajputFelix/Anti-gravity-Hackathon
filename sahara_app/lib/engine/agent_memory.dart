@@ -1,6 +1,7 @@
 /// SAHARA AI — Antigravity Shared Memory
 /// This is the shared context that flows between all 6 agents in the pipeline.
 /// Each agent reads from and writes to this memory, creating a visible chain of reasoning.
+library;
 
 class AgentMemory {
   // ── Input Signal ──
@@ -97,6 +98,7 @@ class AgentMemory {
         'fallback_count': fallbackCount,
         'system_resilience': systemResilience,
       },
+      'analyzed_at': DateTime.now().toIso8601String(),
     };
   }
 }
@@ -126,14 +128,14 @@ class AgentTrace {
   });
 
   Map<String, dynamic> toJson() => {
-    'agent_name': agentName,
-    'agent_index': agentIndex,
-    'confidence': confidence,
-    'execution_time_ms': executionTimeMs,
-    'fallback_triggered': fallbackTriggered,
-    'decision': decision,
-    'observations': observations,
-    'reasoning_steps': reasoningSteps,
-    'tool_calls': toolCalls,
-  };
+        'agent_name': agentName,
+        'agent_index': agentIndex,
+        'confidence': confidence,
+        'execution_time_ms': executionTimeMs,
+        'fallback_triggered': fallbackTriggered,
+        'decision': decision,
+        'observations': observations,
+        'reasoning_steps': reasoningSteps,
+        'tool_calls': toolCalls,
+      };
 }

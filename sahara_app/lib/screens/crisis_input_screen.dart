@@ -12,7 +12,8 @@ class CrisisInputScreen extends StatefulWidget {
   State<CrisisInputScreen> createState() => _CrisisInputScreenState();
 }
 
-class _CrisisInputScreenState extends State<CrisisInputScreen> with TickerProviderStateMixin {
+class _CrisisInputScreenState extends State<CrisisInputScreen>
+    with TickerProviderStateMixin {
   final TextEditingController _textController = TextEditingController();
   String _selectedSource = 'citizen_report';
   bool _isAnalyzing = false;
@@ -30,39 +31,51 @@ class _CrisisInputScreenState extends State<CrisisInputScreen> with TickerProvid
     {
       'key': 'islamabad_flood',
       'label': '🌊 Islamabad Flooding',
-      'text': 'G-10 mein pani bhar gaya hai, gaariyan phans gayi hain aur logon ke ghar zabardast baarish ki wajah se doob rahe hain. Rescue ki zaroorat hai!',
+      'text':
+          'G-10 mein pani bhar gaya hai, gaariyan phans gayi hain aur logon ke ghar zabardast baarish ki wajah se doob rahe hain. Rescue ki zaroorat hai!',
       'source': 'citizen_report',
       'location': 'G-10, Islamabad',
     },
     {
       'key': 'karachi_heatwave',
       'label': '🌡️ Karachi Heatwave',
-      'text': 'Severe heatwave warning for Karachi. Temperature reaching 48°C. Multiple heat stroke cases reported near Saddar area. Hospitals running out of beds.',
+      'text':
+          'Severe heatwave warning for Karachi. Temperature reaching 48°C. Multiple heat stroke cases reported near Saddar area. Hospitals running out of beds.',
       'source': 'weather_api',
       'location': 'Saddar, Karachi',
     },
     {
       'key': 'lahore_accident',
       'label': '🚗 Lahore Accident',
-      'text': 'Bada accident hua hai Shahrah-e-Quaid-e-Azam pe. Teen gaariyan takra gayi hain, road completely block hai. Ambulance aur traffic police chahiye.',
+      'text':
+          'Bada accident hua hai Shahrah-e-Quaid-e-Azam pe. Teen gaariyan takra gayi hain, road completely block hai. Ambulance aur traffic police chahiye.',
       'source': 'social_media',
       'location': 'Shahrah-e-Quaid-e-Azam, Lahore',
     },
     {
       'key': 'quetta_earthquake',
       'label': '🏚️ Quetta Earthquake',
-      'text': 'Earthquake felt in Quetta, magnitude approximately 5.2. Buildings cracked in Satellite Town area. People running out of homes. Need immediate rescue.',
+      'text':
+          'Earthquake felt in Quetta, magnitude approximately 5.2. Buildings cracked in Satellite Town area. People running out of homes. Need immediate rescue.',
       'source': 'news_agency',
       'location': 'Satellite Town, Quetta',
     },
   ];
 
-  final List<String> _sources = ['citizen_report', 'weather_api', 'traffic_api', 'social_media', 'news_agency'];
+  final List<String> _sources = [
+    'citizen_report',
+    'weather_api',
+    'traffic_api',
+    'social_media',
+    'news_agency'
+  ];
 
   @override
   void initState() {
     super.initState();
-    _loadingController = AnimationController(vsync: this, duration: const Duration(seconds: 1))..repeat();
+    _loadingController =
+        AnimationController(vsync: this, duration: const Duration(seconds: 1))
+          ..repeat();
   }
 
   @override
@@ -74,7 +87,8 @@ class _CrisisInputScreenState extends State<CrisisInputScreen> with TickerProvid
 
   Future<void> _runAnalysis() async {
     if (_textController.text.trim().isEmpty) {
-      setState(() => _errorMessage = 'Please enter a crisis report or load a sample scenario.');
+      setState(() => _errorMessage =
+          'Please enter a crisis report or load a sample scenario.');
       return;
     }
     setState(() {
@@ -99,8 +113,10 @@ class _CrisisInputScreenState extends State<CrisisInputScreen> with TickerProvid
               _currentAgentStatus = status;
               _overallProgress = progress;
               // Track completed agents
-              if (status == 'Complete ✓' && !_completedSteps.any((s) => s.index == agentIndex)) {
-                _completedSteps.add(_AgentStep(index: agentIndex, name: agentName));
+              if (status == 'Complete ✓' &&
+                  !_completedSteps.any((s) => s.index == agentIndex)) {
+                _completedSteps
+                    .add(_AgentStep(index: agentIndex, name: agentName));
               }
             });
           }
@@ -108,7 +124,8 @@ class _CrisisInputScreenState extends State<CrisisInputScreen> with TickerProvid
       );
       widget.onAnalysisComplete(result);
     } catch (e) {
-      setState(() => _errorMessage = 'Analysis failed: ${e.toString().replaceAll('Exception: ', '')}');
+      setState(() => _errorMessage =
+          'Analysis failed: ${e.toString().replaceAll('Exception: ', '')}');
     } finally {
       if (mounted) setState(() => _isAnalyzing = false);
     }
@@ -119,7 +136,7 @@ class _CrisisInputScreenState extends State<CrisisInputScreen> with TickerProvid
     return Scaffold(
       backgroundColor: AppTheme.midnight,
       appBar: AppBar(
-        title: const Text('Crisis Input'),
+        title: const Text('Signal Inject (Demo Mode)'),
         backgroundColor: AppTheme.deepNavy,
         actions: [
           Container(
@@ -137,11 +154,14 @@ class _CrisisInputScreenState extends State<CrisisInputScreen> with TickerProvid
               ),
             ),
             child: GestureDetector(
-              onTap: () => setState(() => ApiService.useMockData = !ApiService.useMockData),
+              onTap: () => setState(
+                  () => ApiService.useMockData = !ApiService.useMockData),
               child: Text(
                 ApiService.useMockData ? 'DEMO MODE' : 'LIVE MODE',
                 style: TextStyle(
-                  color: ApiService.useMockData ? AppTheme.alertOrange : AppTheme.successGreen,
+                  color: ApiService.useMockData
+                      ? AppTheme.alertOrange
+                      : AppTheme.successGreen,
                   fontSize: 10,
                   fontWeight: FontWeight.w700,
                   letterSpacing: 0.5,
@@ -151,8 +171,27 @@ class _CrisisInputScreenState extends State<CrisisInputScreen> with TickerProvid
           ),
         ],
         bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(1),
-          child: Container(height: 1, color: AppTheme.navyBorder),
+          preferredSize: const Size.fromHeight(56),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: const Text(
+                    'In production, signals are ingested automatically from social media, weather APIs, and traffic feeds. Use this screen to inject test signals for demonstration.',
+                    style: TextStyle(
+                      color: AppTheme.textMuted,
+                      fontSize: 12,
+                      height: 1.35,
+                    ),
+                  ),
+                ),
+              ),
+              Container(height: 1, color: AppTheme.navyBorder),
+            ],
+          ),
         ),
       ),
       body: Stack(
@@ -164,14 +203,22 @@ class _CrisisInputScreenState extends State<CrisisInputScreen> with TickerProvid
               children: [
                 FadeInDown(child: _buildInputHeader()),
                 const SizedBox(height: 20),
-                FadeInUp(delay: const Duration(milliseconds: 100), child: _buildTextInput()),
+                FadeInUp(
+                    delay: const Duration(milliseconds: 100),
+                    child: _buildTextInput()),
                 const SizedBox(height: 16),
-                FadeInUp(delay: const Duration(milliseconds: 150), child: _buildSourceSelector()),
+                FadeInUp(
+                    delay: const Duration(milliseconds: 150),
+                    child: _buildSourceSelector()),
                 const SizedBox(height: 24),
-                FadeInUp(delay: const Duration(milliseconds: 200), child: _buildScenarioLoader()),
+                FadeInUp(
+                    delay: const Duration(milliseconds: 200),
+                    child: _buildScenarioLoader()),
                 const SizedBox(height: 24),
                 if (_errorMessage != null) FadeIn(child: _buildError()),
-                FadeInUp(delay: const Duration(milliseconds: 250), child: _buildAnalyzeButton()),
+                FadeInUp(
+                    delay: const Duration(milliseconds: 250),
+                    child: _buildAnalyzeButton()),
                 const SizedBox(height: 80),
               ],
             ),
@@ -194,16 +241,25 @@ class _CrisisInputScreenState extends State<CrisisInputScreen> with TickerProvid
         children: [
           Container(
             padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(gradient: AppTheme.blueGradient, borderRadius: BorderRadius.circular(10)),
-            child: const Icon(Icons.hub_outlined, color: Colors.white, size: 24),
+            decoration: BoxDecoration(
+                gradient: AppTheme.blueGradient,
+                borderRadius: BorderRadius.circular(10)),
+            child:
+                const Icon(Icons.hub_outlined, color: Colors.white, size: 24),
           ),
           const SizedBox(width: 14),
-          Expanded(
+          const Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Antigravity Intake', style: TextStyle(color: AppTheme.textPrimary, fontSize: 15, fontWeight: FontWeight.w600)),
-                Text('Enter report in English, Urdu, or Roman Urdu', style: TextStyle(color: AppTheme.textSecondary, fontSize: 12)),
+                Text('Antigravity Intake',
+                    style: TextStyle(
+                        color: AppTheme.textPrimary,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600)),
+                Text('Enter report in English, Urdu, or Roman Urdu',
+                    style:
+                        TextStyle(color: AppTheme.textSecondary, fontSize: 12)),
               ],
             ),
           ),
@@ -216,7 +272,11 @@ class _CrisisInputScreenState extends State<CrisisInputScreen> with TickerProvid
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Crisis Report', style: TextStyle(color: AppTheme.textSecondary, fontSize: 13, fontWeight: FontWeight.w500)),
+        const Text('Crisis Report',
+            style: TextStyle(
+                color: AppTheme.textSecondary,
+                fontSize: 13,
+                fontWeight: FontWeight.w500)),
         const SizedBox(height: 8),
         Container(
           decoration: BoxDecoration(
@@ -227,12 +287,13 @@ class _CrisisInputScreenState extends State<CrisisInputScreen> with TickerProvid
           child: TextField(
             controller: _textController,
             maxLines: 6,
-            style: TextStyle(color: AppTheme.textPrimary, fontSize: 14),
-            decoration: InputDecoration(
-              hintText: 'G-10 mein pani bhar gaya hai...\nor: Flood alert in G-10 Islamabad\nیا: اسلام آباد میں سیلاب',
+            style: const TextStyle(color: AppTheme.textPrimary, fontSize: 14),
+            decoration: const InputDecoration(
+              hintText:
+                  'G-10 mein pani bhar gaya hai...\nor: Flood alert in G-10 Islamabad\nیا: اسلام آباد میں سیلاب',
               hintStyle: TextStyle(color: AppTheme.textMuted, fontSize: 13),
               border: InputBorder.none,
-              contentPadding: const EdgeInsets.all(16),
+              contentPadding: EdgeInsets.all(16),
             ),
           ),
         ),
@@ -251,7 +312,11 @@ class _CrisisInputScreenState extends State<CrisisInputScreen> with TickerProvid
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Signal Source', style: TextStyle(color: AppTheme.textSecondary, fontSize: 13, fontWeight: FontWeight.w500)),
+        const Text('Signal Source',
+            style: TextStyle(
+                color: AppTheme.textSecondary,
+                fontSize: 13,
+                fontWeight: FontWeight.w500)),
         const SizedBox(height: 8),
         Wrap(
           spacing: 8,
@@ -261,20 +326,36 @@ class _CrisisInputScreenState extends State<CrisisInputScreen> with TickerProvid
             return GestureDetector(
               onTap: () => setState(() => _selectedSource = s),
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
                 decoration: BoxDecoration(
-                  color: selected ? AppTheme.electricBlue.withOpacity(0.15) : AppTheme.navyCard,
+                  color: selected
+                      ? AppTheme.electricBlue.withOpacity(0.15)
+                      : AppTheme.navyCard,
                   borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: selected ? AppTheme.electricBlue : AppTheme.navyBorder),
+                  border: Border.all(
+                      color: selected
+                          ? AppTheme.electricBlue
+                          : AppTheme.navyBorder),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(sourceIcons[s] ?? Icons.input, color: selected ? AppTheme.electricBlue : AppTheme.textMuted, size: 14),
+                    Icon(sourceIcons[s] ?? Icons.input,
+                        color: selected
+                            ? AppTheme.electricBlue
+                            : AppTheme.textMuted,
+                        size: 14),
                     const SizedBox(width: 6),
                     Text(
                       s.replaceAll('_', ' '),
-                      style: TextStyle(color: selected ? AppTheme.electricBlue : AppTheme.textSecondary, fontSize: 12, fontWeight: selected ? FontWeight.w600 : FontWeight.w400),
+                      style: TextStyle(
+                          color: selected
+                              ? AppTheme.electricBlue
+                              : AppTheme.textSecondary,
+                          fontSize: 12,
+                          fontWeight:
+                              selected ? FontWeight.w600 : FontWeight.w400),
                     ),
                   ],
                 ),
@@ -292,7 +373,11 @@ class _CrisisInputScreenState extends State<CrisisInputScreen> with TickerProvid
       children: [
         Row(
           children: [
-            Text('Load Demo Scenario', style: TextStyle(color: AppTheme.textSecondary, fontSize: 13, fontWeight: FontWeight.w500)),
+            const Text('Load Demo Scenario',
+                style: TextStyle(
+                    color: AppTheme.textSecondary,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500)),
             const Spacer(),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
@@ -300,48 +385,63 @@ class _CrisisInputScreenState extends State<CrisisInputScreen> with TickerProvid
                 color: AppTheme.cyanAccent.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: Text('${_scenarios.length} scenarios', style: TextStyle(color: AppTheme.cyanAccent, fontSize: 10)),
+              child: Text('${_scenarios.length} scenarios',
+                  style: const TextStyle(
+                      color: AppTheme.cyanAccent, fontSize: 10)),
             ),
           ],
         ),
         const SizedBox(height: 10),
         ..._scenarios.map((s) => GestureDetector(
-          onTap: () {
-            _textController.text = s['text'] as String;
-            setState(() => _selectedSource = s['source'] as String);
-          },
-          child: Container(
-            margin: const EdgeInsets.only(bottom: 10),
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              gradient: AppTheme.cardGradient,
-              borderRadius: AppTheme.radiusMd,
-              border: Border.all(color: AppTheme.navyBorder),
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(s['label'] as String, style: TextStyle(color: AppTheme.textPrimary, fontSize: 14, fontWeight: FontWeight.w600)),
-                      const SizedBox(height: 2),
-                      Text(s['location'] as String, style: TextStyle(color: AppTheme.cyanAccent, fontSize: 11)),
-                      const SizedBox(height: 2),
-                      Text(s['text'] as String, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: AppTheme.textSecondary, fontSize: 12)),
-                    ],
-                  ),
+              onTap: () {
+                _textController.text = s['text'] as String;
+                setState(() => _selectedSource = s['source'] as String);
+              },
+              child: Container(
+                margin: const EdgeInsets.only(bottom: 10),
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  gradient: AppTheme.cardGradient,
+                  borderRadius: AppTheme.radiusMd,
+                  border: Border.all(color: AppTheme.navyBorder),
                 ),
-                const SizedBox(width: 8),
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(color: AppTheme.electricBlue.withOpacity(0.15), borderRadius: BorderRadius.circular(8)),
-                  child: const Icon(Icons.upload_rounded, color: AppTheme.electricBlue, size: 16),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(s['label'] as String,
+                              style: const TextStyle(
+                                  color: AppTheme.textPrimary,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600)),
+                          const SizedBox(height: 2),
+                          Text(s['location'] as String,
+                              style: const TextStyle(
+                                  color: AppTheme.cyanAccent, fontSize: 11)),
+                          const SizedBox(height: 2),
+                          Text(s['text'] as String,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                  color: AppTheme.textSecondary, fontSize: 12)),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                          color: AppTheme.electricBlue.withOpacity(0.15),
+                          borderRadius: BorderRadius.circular(8)),
+                      child: const Icon(Icons.upload_rounded,
+                          color: AppTheme.electricBlue, size: 16),
+                    ),
+                  ],
                 ),
-              ],
-            ),
-          ),
-        )),
+              ),
+            )),
       ],
     );
   }
@@ -350,12 +450,18 @@ class _CrisisInputScreenState extends State<CrisisInputScreen> with TickerProvid
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(color: AppTheme.alertRed.withOpacity(0.1), borderRadius: AppTheme.radiusMd, border: Border.all(color: AppTheme.alertRed.withOpacity(0.3))),
+      decoration: BoxDecoration(
+          color: AppTheme.alertRed.withOpacity(0.1),
+          borderRadius: AppTheme.radiusMd,
+          border: Border.all(color: AppTheme.alertRed.withOpacity(0.3))),
       child: Row(
         children: [
           const Icon(Icons.error_outline, color: AppTheme.alertRed, size: 16),
           const SizedBox(width: 8),
-          Expanded(child: Text(_errorMessage!, style: TextStyle(color: AppTheme.alertRed, fontSize: 12))),
+          Expanded(
+              child: Text(_errorMessage!,
+                  style:
+                      const TextStyle(color: AppTheme.alertRed, fontSize: 12))),
           GestureDetector(
             onTap: () => setState(() => _errorMessage = null),
             child: const Icon(Icons.close, color: AppTheme.alertRed, size: 14),
@@ -372,21 +478,38 @@ class _CrisisInputScreenState extends State<CrisisInputScreen> with TickerProvid
         width: double.infinity,
         padding: const EdgeInsets.symmetric(vertical: 18),
         decoration: BoxDecoration(
-          gradient: const LinearGradient(colors: [Color(0xFF1E6FFF), Color(0xFF0D50CC)]),
+          gradient: const LinearGradient(
+              colors: [Color(0xFF1E6FFF), Color(0xFF0D50CC)]),
           borderRadius: AppTheme.radiusLg,
-          boxShadow: [BoxShadow(color: AppTheme.electricBlue.withOpacity(0.35), blurRadius: 20, spreadRadius: 2, offset: const Offset(0, 6))],
+          boxShadow: [
+            BoxShadow(
+                color: AppTheme.electricBlue.withOpacity(0.35),
+                blurRadius: 20,
+                spreadRadius: 2,
+                offset: const Offset(0, 6))
+          ],
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             const Icon(Icons.analytics_outlined, color: Colors.white, size: 22),
             const SizedBox(width: 10),
-            Text('Run Antigravity Analysis', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700)),
+            const Text('Run Antigravity Analysis',
+                style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700)),
             const SizedBox(width: 10),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-              decoration: BoxDecoration(color: Colors.white.withOpacity(0.2), borderRadius: BorderRadius.circular(10)),
-              child: Text('6 Agents', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w600)),
+              decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(10)),
+              child: const Text('6 Agents',
+                  style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600)),
             ),
           ],
         ),
@@ -414,7 +537,8 @@ class _CrisisInputScreenState extends State<CrisisInputScreen> with TickerProvid
             children: [
               // Animated spinner with agent index
               SizedBox(
-                width: 90, height: 90,
+                width: 90,
+                height: 90,
                 child: Stack(
                   alignment: Alignment.center,
                   children: [
@@ -423,21 +547,30 @@ class _CrisisInputScreenState extends State<CrisisInputScreen> with TickerProvid
                       builder: (_, __) => Transform.rotate(
                         angle: _loadingController.value * 6.28,
                         child: Container(
-                          width: 90, height: 90,
+                          width: 90,
+                          height: 90,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            gradient: SweepGradient(colors: [AppTheme.electricBlue, AppTheme.electricBlue.withOpacity(0)]),
+                            gradient: SweepGradient(colors: [
+                              AppTheme.electricBlue,
+                              AppTheme.electricBlue.withOpacity(0)
+                            ]),
                           ),
                         ),
                       ),
                     ),
                     Container(
-                      width: 72, height: 72,
-                      decoration: const BoxDecoration(shape: BoxShape.circle, color: AppTheme.midnight),
+                      width: 72,
+                      height: 72,
+                      decoration: const BoxDecoration(
+                          shape: BoxShape.circle, color: AppTheme.midnight),
                       child: Center(
                         child: Text(
                           '$_currentAgentIndex/6',
-                          style: TextStyle(color: AppTheme.electricBlue, fontSize: 20, fontWeight: FontWeight.w700),
+                          style: const TextStyle(
+                              color: AppTheme.electricBlue,
+                              fontSize: 20,
+                              fontWeight: FontWeight.w700),
                         ),
                       ),
                     ),
@@ -446,16 +579,26 @@ class _CrisisInputScreenState extends State<CrisisInputScreen> with TickerProvid
               ),
 
               const SizedBox(height: 24),
-              Text('Antigravity Orchestration', style: TextStyle(color: AppTheme.textPrimary, fontSize: 20, fontWeight: FontWeight.w700)),
+              const Text('Antigravity Orchestration',
+                  style: TextStyle(
+                      color: AppTheme.textPrimary,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w700)),
               const SizedBox(height: 4),
               Text(
-                _currentAgentName.isNotEmpty ? _currentAgentName : 'Initializing pipeline...',
-                style: TextStyle(color: AppTheme.electricBlue, fontSize: 14, fontWeight: FontWeight.w500),
+                _currentAgentName.isNotEmpty
+                    ? _currentAgentName
+                    : 'Initializing pipeline...',
+                style: const TextStyle(
+                    color: AppTheme.electricBlue,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500),
               ),
               const SizedBox(height: 4),
               Text(
                 _currentAgentStatus,
-                style: TextStyle(color: AppTheme.textSecondary, fontSize: 12),
+                style: const TextStyle(
+                    color: AppTheme.textSecondary, fontSize: 12),
               ),
 
               const SizedBox(height: 20),
@@ -473,7 +616,8 @@ class _CrisisInputScreenState extends State<CrisisInputScreen> with TickerProvid
                     widthFactor: _overallProgress.clamp(0.0, 1.0),
                     child: Container(
                       decoration: BoxDecoration(
-                        gradient: const LinearGradient(colors: [Color(0xFF1E6FFF), Color(0xFF00E5FF)]),
+                        gradient: const LinearGradient(
+                            colors: [Color(0xFF1E6FFF), Color(0xFF00E5FF)]),
                         borderRadius: BorderRadius.circular(2),
                       ),
                     ),
@@ -487,7 +631,8 @@ class _CrisisInputScreenState extends State<CrisisInputScreen> with TickerProvid
               ...agentNames.asMap().entries.map((e) {
                 final i = e.key;
                 final agentName = e.value;
-                final isCompleted = _completedSteps.any((s) => s.index == i + 1);
+                final isCompleted =
+                    _completedSteps.any((s) => s.index == i + 1);
                 final isActive = _currentAgentIndex == i + 1 && !isCompleted;
                 final isPending = _currentAgentIndex < i + 1;
 
@@ -498,16 +643,19 @@ class _CrisisInputScreenState extends State<CrisisInputScreen> with TickerProvid
                       SizedBox(
                         width: 18,
                         child: isCompleted
-                            ? const Icon(Icons.check_circle, color: AppTheme.successGreen, size: 16)
+                            ? const Icon(Icons.check_circle,
+                                color: AppTheme.successGreen, size: 16)
                             : isActive
-                                ? SizedBox(
-                                    width: 14, height: 14,
+                                ? const SizedBox(
+                                    width: 14,
+                                    height: 14,
                                     child: CircularProgressIndicator(
                                       strokeWidth: 2,
                                       color: AppTheme.electricBlue,
                                     ),
                                   )
-                                : Icon(Icons.radio_button_unchecked, color: AppTheme.textMuted, size: 14),
+                                : const Icon(Icons.radio_button_unchecked,
+                                    color: AppTheme.textMuted, size: 14),
                       ),
                       const SizedBox(width: 10),
                       Text(
@@ -519,14 +667,16 @@ class _CrisisInputScreenState extends State<CrisisInputScreen> with TickerProvid
                                   ? AppTheme.textPrimary
                                   : AppTheme.textMuted,
                           fontSize: 12,
-                          fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
+                          fontWeight:
+                              isActive ? FontWeight.w600 : FontWeight.w400,
                         ),
                       ),
                       if (isActive && _currentAgentStatus.isNotEmpty) ...[
                         const Spacer(),
                         Text(
                           _currentAgentStatus,
-                          style: TextStyle(color: AppTheme.cyanAccent, fontSize: 10),
+                          style: const TextStyle(
+                              color: AppTheme.cyanAccent, fontSize: 10),
                         ),
                       ],
                     ],
@@ -535,11 +685,17 @@ class _CrisisInputScreenState extends State<CrisisInputScreen> with TickerProvid
               }),
 
               const SizedBox(height: 16),
-              Row(
+              const Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text('Powered by ', style: TextStyle(color: AppTheme.textMuted, fontSize: 11)),
-                  Text('Google Antigravity', style: TextStyle(color: AppTheme.electricBlue, fontSize: 11, fontWeight: FontWeight.w600)),
+                  Text('Powered by ',
+                      style:
+                          TextStyle(color: AppTheme.textMuted, fontSize: 11)),
+                  Text('Google Antigravity',
+                      style: TextStyle(
+                          color: AppTheme.electricBlue,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600)),
                 ],
               ),
             ],
