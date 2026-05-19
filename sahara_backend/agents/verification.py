@@ -268,14 +268,14 @@ def run(context: CrisisContext) -> CrisisContext:
         status = VerificationStatus.CONFIRMED
         decision = f"Crisis CONFIRMED with {confidence:.0%} confidence. Weather + location data consistent with report."
         observations.append("✅ All cross-checks passed. Crisis is CONFIRMED.")
-    elif confidence >= 0.45:
+    elif confidence >= 0.40:
         status = VerificationStatus.UNCERTAIN
-        decision = f"Crisis UNCERTAIN — insufficient supporting evidence ({confidence:.0%}) but no contradictions detected."
-        observations.append("⚠ Confidence level insufficient for confirmation but no contradictions. Marking as UNCERTAIN.")
+        decision = f"Crisis UNCERTAIN — insufficient supporting evidence ({confidence:.0%}) but no contradictions detected. Triggers fallback analysis."
+        observations.append("⚠ Confidence level insufficient for confirmation but no contradictions. Marking as UNCERTAIN (triggers fallback verification).")
     else:
         status = VerificationStatus.UNVERIFIED
-        decision = f"Crisis UNVERIFIED — confidence too low ({confidence:.0%}). Requires additional data sources."
-        observations.append("⛔ Confidence below threshold. Status: UNVERIFIED.")
+        decision = f"Crisis UNVERIFIED — confidence critically low ({confidence:.0%}). Requires additional data sources."
+        observations.append("⛔ Confidence critically low. Status: UNVERIFIED.")
 
     verification = VerificationResult(
         status=status,
