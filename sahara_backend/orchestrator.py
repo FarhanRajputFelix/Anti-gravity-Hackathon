@@ -198,6 +198,37 @@ class AntigravityOrchestrator:
         print(f"[ANTIGRAVITY] -> Invoking Agent 1: Signal Ingestion Agent")
         context = signal_ingestion.run(context)
 
+        # GATE 1: Check for rejected signals
+        if context.system_status == "REJECTED_NOT_A_CRISIS":
+            print(f"[ANTIGRAVITY] ⛔ GATE 1 REJECTED: Signal failed crisis validation")
+            total_elapsed = int((time.time() - workflow_start) * 1000)
+            agent_trace = context.agent_traces[-1] if context.agent_traces else None
+            return AnalysisResult(
+                crisis_id=context.crisis_id,
+                status="REJECTED",
+                crisis_type="UNKNOWN",
+                location="Unknown",
+                city="Unknown",
+                severity="UNKNOWN",
+                verification_status="NOT_CHECKED",
+                confidence=0.0,
+                action_plan=[],
+                simulation=None,
+                agent_traces=[agent_trace] if agent_trace else [],
+                fallback_history=[],
+                total_execution_time_ms=total_elapsed,
+                system_message=f"Signal rejected: Not a valid crisis report. Crisis ID {context.crisis_id}.",
+                map_data={},
+                orchestration_workflow=[
+                    WorkflowStep(
+                        step=1, agent_name="Signal Ingestion Agent", status="COMPLETE",
+                        started_at=step1_start, completed_at=datetime.utcnow().isoformat(),
+                        tool_calls=["keyword_detector", "language_classifier"],
+                        handoff_to=None, gemini_used=False,
+                    )
+                ],
+            )
+
         # Gemini enrichment
         gemini_used_1 = False
         if self.gemini_enabled:
@@ -225,6 +256,55 @@ class AntigravityOrchestrator:
         context = verification.run(context)
 
         gemini_used_2 = False
+
+        # DIAGNOSTIC: Print verification result
+        if context.verification:
+            print(f"[DIAGNOSTIC] Verification Status: {context.verification.status.value}")
+            print(f"[DIAGNOSTIC] Confidence Score: {context.verification.confidence_score:.3f}")
+            print(f"[DIAGNOSTIC] Contradictions: {context.verification.contradictions}")
+            print(f"[DIAGNOSTIC] Weather Consistent: {context.verification.weather_consistent}")
+
+        # GATE 2: Check verification status — CONTRADICTED reports are rejected immediately
+        if context.verification and context.verification.status == VerificationStatus.CONTRADICTED:
+            print(f"[ANTIGRAVITY] ⛔ GATE 2 REJECTED: Verification status is CONTRADICTED (confidence={context.verification.confidence_score:.0%})")
+            total_elapsed = int((time.time() - workflow_start) * 1000)
+            signal_trace = next((t for t in context.agent_traces if t.agent_name == "Signal Ingestion Agent"), None)
+            verif_trace = next((t for t in context.agent_traces if t.agent_name == "Verification Agent"), None)
+            traces_to_return = [t for t in [signal_trace, verif_trace] if t is not None]
+            contradictions_text = " | ".join(context.verification.contradictions[:2]) if context.verification.contradictions else "Report contradicts real-world data"
+            return AnalysisResult(
+                crisis_id=context.crisis_id,
+                status="UNVERIFIED",
+                crisis_type=context.entities.crisis_type.value if context.entities else "UNKNOWN",
+                location=context.entities.location if context.entities else "Unknown",
+                city=context.entities.city if context.entities else "Unknown",
+                severity="UNKNOWN",
+                verification_status="CONTRADICTED",
+                confidence=context.verification.confidence_score,
+                action_plan=[],
+                simulation=None,
+                agent_traces=traces_to_return,
+                fallback_history=context.fallback_history,
+                total_execution_time_ms=total_elapsed,
+                system_message=f"Crisis report REJECTED by verification gate: {contradictions_text}. No emergency response initiated.",
+                map_data=self._get_map_data(context),
+                orchestration_workflow=[
+                    WorkflowStep(
+                        step=1, agent_name="Signal Ingestion Agent", status="COMPLETE",
+                        started_at=step1_start, completed_at=datetime.utcnow().isoformat(),
+                        tool_calls=["keyword_detector", "language_classifier", "entity_extractor"],
+                        handoff_to="Verification Agent", gemini_used=gemini_used_1,
+                    ),
+                    WorkflowStep(
+                        step=2, agent_name="Verification Agent", status="COMPLETE",
+                        started_at=step2_start, completed_at=datetime.utcnow().isoformat(),
+                        tool_calls=["weather_api", "geoapify_geocoding", "signal_correlation_engine"],
+                        handoff_to=None, gemini_used=gemini_used_2,
+                    )
+                ],
+            )
+
+        # Gemini enrichment
         if self.gemini_enabled:
             ai_reasoning = await _gemini_reason(
                 "Verification Agent",

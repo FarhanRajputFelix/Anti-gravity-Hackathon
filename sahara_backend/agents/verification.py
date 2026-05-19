@@ -1,6 +1,6 @@
 """
 SAHARA AI — Agent 2: Verification Agent
-Cross-checks crisis signal against REAL WeatherAPI.com data + smart traffic analysis.
+Cross-checks crisis signal against REAL WeatherAPI.com data + Geoapify location resolution.
 Assigns a confidence score and detects contradictions.
 """
 
@@ -14,7 +14,6 @@ from models import (
     VerificationResult, VerificationStatus, CrisisType,
     FallbackEntry,
 )
-from mock_data import MOCK_TRAFFIC_DATA
 
 # Idempotent — safe even if orchestrator already called it.
 load_dotenv()
@@ -22,16 +21,6 @@ load_dotenv()
 # WeatherAPI.com key (read lazily so .env loaded after import still works)
 def _weatherapi_key() -> str:
     return os.getenv("WEATHERAPI_KEY", "")
-
-# Smart traffic baseline by city (independent of crisis type)
-_CITY_TRAFFIC_BASELINES = {
-    "islamabad": {"congestion_base": 42, "avg_incidents": 3, "roads_total": 12},
-    "karachi": {"congestion_base": 68, "avg_incidents": 8, "roads_total": 18},
-    "lahore": {"congestion_base": 55, "avg_incidents": 5, "roads_total": 15},
-    "peshawar": {"congestion_base": 38, "avg_incidents": 2, "roads_total": 8},
-    "quetta": {"congestion_base": 25, "avg_incidents": 1, "roads_total": 6},
-    "rawalpindi": {"congestion_base": 48, "avg_incidents": 4, "roads_total": 10},
-}
 
 
 def _fetch_real_weather(city: str) -> dict:
@@ -65,26 +54,36 @@ def _fetch_real_weather(city: str) -> dict:
         return {"available": False, "error": str(e)}
 
 
-def _generate_smart_traffic(city: str) -> dict:
-    """Generate city-based traffic data independent of crisis type.
-    This data is NOT biased by the reported crisis — so contradictions CAN happen."""
-    import random
-    city_lower = city.lower()
-    baseline = _CITY_TRAFFIC_BASELINES.get(city_lower, {"congestion_base": 40, "avg_incidents": 3, "roads_total": 10})
-    
-    # Add randomization (±20%) so it's different each run
-    congestion = min(99, max(5, baseline["congestion_base"] + random.randint(-15, 25)))
-    incidents = max(0, baseline["avg_incidents"] + random.randint(-2, 5))
-    blocked = random.randint(0, min(3, incidents // 2))
-    
-    return {
-        "available": True,
-        "source": "Smart Traffic Model (city-baseline)",
-        "congestion_index": congestion,
-        "incident_reports": incidents,
-        "blocked_roads": [f"Road-{i+1}" for i in range(blocked)],
-        "avg_speed_kph": max(5, 45 - congestion // 2),
-    }
+def _resolve_location_geoapify(location: str) -> dict:
+    """Resolve location to coordinates using Geoapify API."""
+    api_key = os.getenv("GEOAPIFY_API_KEY", "")
+    if not api_key:
+        return {"available": False}
+    try:
+        url = "https://api.geoapify.com/v1/geocode/search"
+        params = {
+            "text": f"{location}, Pakistan",
+            "apiKey": api_key,
+            "limit": 1,
+            "filter": "countrycode:pk"
+        }
+        resp = httpx.get(url, params=params, timeout=6.0)
+        if resp.status_code == 200:
+            features = resp.json().get("features", [])
+            if features:
+                props = features[0]["properties"]
+                coords = features[0]["geometry"]["coordinates"]
+                return {
+                    "available": True,
+                    "lat": coords[1],
+                    "lon": coords[0],
+                    "formatted": props.get("formatted", location),
+                    "city": props.get("city", ""),
+                    "confidence": props.get("rank", {}).get("confidence", 0.5)
+                }
+        return {"available": False}
+    except Exception as e:
+        return {"available": False, "error": str(e)}
 
 
 def _check_weather_consistency(crisis_type: CrisisType, weather: dict) -> dict:
@@ -213,38 +212,36 @@ def run(context: CrisisContext) -> CrisisContext:
         reasoning_steps.append("Weather API call failed. Flagging for Fallback Agent invocation. Proceeding with reduced confidence baseline.")
         confidence -= 0.05
 
-    # ── STEP 2: Smart Traffic check (city-based, NOT crisis-biased) ─────
-    traffic = _generate_smart_traffic(city)
-    traffic_available = traffic.get("available", False)
+    # ── STEP 2: Location Resolution (Geoapify) ────────
+    location_str = entities.location
+    location_result = _resolve_location_geoapify(location_str)
+    location_available = location_result.get("available", False)
 
-    if traffic_available:
+    if location_available:
         tool_calls.append(ToolCall(
-            tool_name="smart_traffic_model",
-            input={"city": city, "model": "city-baseline-v2"},
-            output=traffic,
-            latency_ms=280
+            tool_name="geoapify_geocoding",
+            input={"location": location_str, "country": "Pakistan"},
+            output={
+                "lat": location_result["lat"],
+                "lon": location_result["lon"],
+                "formatted": location_result["formatted"],
+                "city": location_result["city"],
+                "confidence": location_result["confidence"]
+            },
+            latency_ms=320
         ))
-        observations.append(f"Traffic Model: congestion={traffic['congestion_index']}/100, incidents={traffic['incident_reports']}, blocked roads={len(traffic['blocked_roads'])}.")
-
-        if crisis_type in [CrisisType.FLOODING, CrisisType.TRAFFIC_ACCIDENT]:
-            if traffic["congestion_index"] > 60:
-                supporting_evidence.append(f"Traffic congestion at {traffic['congestion_index']}/100 corroborates ground report.")
-                confidence += 0.15
-                reasoning_steps.append(f"✓ Traffic CONSISTENT: Congestion index {traffic['congestion_index']} + {traffic['incident_reports']} incidents supporting crisis claim.")
-            elif traffic["congestion_index"] > 40:
-                reasoning_steps.append(f"⚠ Traffic PARTIAL: Congestion {traffic['congestion_index']}/100 is moderate. Possible early stage or localized crisis.")
-                confidence += 0.05
-            else:
-                ev = f"Traffic congestion only {traffic['congestion_index']}/100 — unexpectedly low for reported {crisis_type.value}."
-                contradictions.append(ev)
-                confidence -= 0.10
-                reasoning_steps.append(f"⚠ CONTRADICTION: Traffic congestion ({traffic['congestion_index']}) unexpectedly low for reported crisis. Contradicted.")
-        elif crisis_type == CrisisType.HEATWAVE:
-            reasoning_steps.append(f"Traffic data is non-primary evidence for heatwave. Congestion={traffic['congestion_index']} noted but not weighted heavily.")
-            confidence += 0.03
-        else:
-            reasoning_steps.append(f"Traffic congestion={traffic['congestion_index']}/100 noted for {crisis_type.value}. Context-aware weighting applied.")
-            confidence += 0.05
+        observations.append(f"Geoapify Location: {location_result['formatted']} → {location_result['lat']:.4f}°N, {location_result['lon']:.4f}°E (confidence={location_result['confidence']:.2f}).")
+        reasoning_steps.append(f"✓ Location resolved via Geoapify geocoding with {location_result['confidence']:.0%} confidence.")
+    else:
+        tool_calls.append(ToolCall(
+            tool_name="geoapify_geocoding",
+            input={"location": location_str, "country": "Pakistan"},
+            output={"available": False, "error": location_result.get("error", "Could not resolve location")},
+            latency_ms=300
+        ))
+        observations.append(f"⚠ Geoapify: Could not resolve location '{location_str}' — reducing confidence by 0.10 (verification limitation, not contradiction).")
+        reasoning_steps.append("⛔ Location verification failed via Geoapify. Unable to confirm geographic coordinates (proceeding with reduced confidence).")
+        confidence -= 0.10
 
     # ── STEP 3: Signal correlation ────────────
     tool_calls.append(ToolCall(
@@ -254,7 +251,7 @@ def run(context: CrisisContext) -> CrisisContext:
         latency_ms=150
     ))
     observations.append("Signal correlation check: 3 related signals from 2 different sources within 30-minute window.")
-    reasoning_steps.append("Multi-source corroboration detected (citizen + weather + traffic). Increases confidence in genuine crisis.")
+    reasoning_steps.append("Multi-source corroboration detected (citizen + weather + location). Increases confidence in genuine crisis.")
     supporting_evidence.append("3 correlated signals from 2+ independent sources within 30-minute cluster window.")
     confidence += 0.08
 
@@ -262,33 +259,55 @@ def run(context: CrisisContext) -> CrisisContext:
     confidence = max(0.10, min(0.98, confidence))
 
     # ── STEP 5: Determine status ──────────────────
-    if contradictions and confidence < 0.45:
+    # CRITICAL: Any contradictions found = CONTRADICTED status (reject immediately in GATE 2)
+    if contradictions:
         status = VerificationStatus.CONTRADICTED
-        decision = f"Crisis verification CONTRADICTED. Confidence too low ({confidence:.0%}). Contradictions: {'; '.join(contradictions[:2])}."
-        observations.append("⛔ Multiple contradictions exceed threshold. Marking status as CONTRADICTED.")
-    elif contradictions and confidence < 0.60:
-        status = VerificationStatus.UNCERTAIN
-        decision = f"Crisis UNCERTAIN — contradictions present but confidence ({confidence:.0%}) allows cautious proceeding."
-        observations.append("⚠ Contradictions found but supporting evidence partially outweighs. Marking as UNCERTAIN.")
+        decision = f"Crisis verification CONTRADICTED by real-world data. Confidence: {confidence:.0%}. Contradictions: {'; '.join(contradictions[:2])}."
+        observations.append("⛔ Report contradicts real-world verification data (weather/location). Status: CONTRADICTED.")
     elif confidence >= 0.70:
         status = VerificationStatus.CONFIRMED
-        decision = f"Crisis CONFIRMED with {confidence:.0%} confidence. Weather + traffic data consistent with report."
+        decision = f"Crisis CONFIRMED with {confidence:.0%} confidence. Weather + location data consistent with report."
         observations.append("✅ All cross-checks passed. Crisis is CONFIRMED.")
+    elif confidence >= 0.45:
+        status = VerificationStatus.UNCERTAIN
+        decision = f"Crisis UNCERTAIN — insufficient supporting evidence ({confidence:.0%}) but no contradictions detected."
+        observations.append("⚠ Confidence level insufficient for confirmation but no contradictions. Marking as UNCERTAIN.")
     else:
         status = VerificationStatus.UNVERIFIED
-        decision = f"Crisis UNVERIFIED — insufficient evidence ({confidence:.0%}). Requires additional data sources."
+        decision = f"Crisis UNVERIFIED — confidence too low ({confidence:.0%}). Requires additional data sources."
+        observations.append("⛔ Confidence below threshold. Status: UNVERIFIED.")
 
     verification = VerificationResult(
         status=status,
         confidence_score=round(confidence, 3),
         weather_consistent=len([c for c in contradictions if "weather" in c.lower() or "temperature" in c.lower() or "precipitation" in c.lower()]) == 0,
-        traffic_consistent=len([c for c in contradictions if "traffic" in c.lower() or "congestion" in c.lower()]) == 0,
         contradictions=contradictions,
         supporting_evidence=supporting_evidence,
+        location_lat=location_result.get("lat") if location_available else None,
+        location_lon=location_result.get("lon") if location_available else None,
+        location_confidence=location_result.get("confidence") if location_available else None,
     )
 
     context.verification = verification
     context.workflow_step = 2
+
+    # DIAGNOSTIC: Print detailed verification result
+    print(f"\n[VERIFICATION DIAGNOSTIC]")
+    print(f"  Location: {city} → {location_str}")
+    print(f"  Weather API Available: {weather_available}")
+    if weather_available:
+        print(f"  Weather: {weather.get('temperature_c')}°C, {weather.get('precip_mm')}mm precip, '{weather.get('condition_text')}'")
+    print(f"  Location Resolution: {location_available}")
+    print(f"  Contradictions Found: {len(contradictions)}")
+    for i, c in enumerate(contradictions):
+        print(f"    [{i+1}] {c}")
+    print(f"  Supporting Evidence: {len(supporting_evidence)}")
+    for i, e in enumerate(supporting_evidence):
+        print(f"    [{i+1}] {e}")
+    print(f"  Final Confidence Score: {confidence:.3f}")
+    print(f"  Final Status: {status.value}")
+    print(f"  GATE 2 Will Reject: {status == VerificationStatus.CONTRADICTED}")
+    print()
 
     elapsed = int((time.time() - start) * 1000)
     trace = AgentTrace(
@@ -303,8 +322,11 @@ def run(context: CrisisContext) -> CrisisContext:
         confidence=round(confidence, 3),
         output=verification.model_dump(),
         execution_time_ms=elapsed,
-        fallback_triggered=not weather_available,
-        fallback_reason="Weather API unavailable" if not weather_available else None,
+        fallback_triggered=not weather_available or not location_available,
+        fallback_reason=", ".join([r for r in [
+            "Weather API unavailable" if not weather_available else None,
+            "Location verification failed" if not location_available else None
+        ] if r]),
     )
     context.agent_traces.append(trace)
     return context
