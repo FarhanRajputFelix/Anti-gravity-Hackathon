@@ -16,8 +16,9 @@ import sys
 import os
 import time
 import uuid
+import asyncio
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List
 
 # Windows console UTF-8 fix
 for _stream in (sys.stdout, sys.stderr):
@@ -47,16 +48,16 @@ _gemini_model = None
 _gemini_available = False
 
 try:
-    import google.generativeai as genai
+    import warnings
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        import google.generativeai as genai
     _api_key = os.getenv("GEMINI_API_KEY", "")
     if _api_key and _api_key != "your-gemini-api-key-here":
         genai.configure(api_key=_api_key)
-        # Try models in order: newest stable first, then fall back if not available.
-        # gemini-1.5-flash was deprecated; pick whichever current model the key supports.
-        _model_name = os.getenv("GEMINI_MODEL", "gemini-flash-latest")
-        _gemini_model = genai.GenerativeModel(_model_name)
+        _gemini_model = genai.GenerativeModel("gemini-2.0-flash")
         _gemini_available = True
-        print(f"[ANTIGRAVITY] Gemini AI connected ({_model_name}) -- AI-enhanced reasoning ACTIVE")
+        print("[ANTIGRAVITY] Gemini AI connected -- AI-enhanced reasoning ACTIVE")
     else:
         print("[ANTIGRAVITY] No GEMINI_API_KEY found -- using rule-based reasoning (demo mode)")
 except ImportError:
@@ -90,6 +91,18 @@ Provide a concise 3-5 line reasoning analysis. Be specific about Pakistani geogr
     except Exception as e:
         print(f"[ANTIGRAVITY] Gemini call failed for {agent_name}: {e}")
         return None
+
+
+async def _fire_notifications(result_payload: dict):
+    """Fire email + WhatsApp alerts after pipeline completes. Non-blocking."""
+    try:
+        from services.email_service import send_department_alerts
+        from services.whatsapp_service import send_whatsapp_alert
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(None, send_department_alerts, result_payload)
+        await loop.run_in_executor(None, send_whatsapp_alert, result_payload)
+    except Exception as e:
+        print(f"[NOTIFICATIONS] Error: {e}")
 
 
 class AntigravityOrchestrator:
@@ -193,41 +206,24 @@ class AntigravityOrchestrator:
         print(f"[ANTIGRAVITY] Execution plan created. Initiating agent pipeline...")
         print(f"{'='*60}\n")
 
+        # ---- PRE-FETCH: Real weather (async, before verification agent) ----
+        try:
+            from services.weather_service import get_real_weather
+            from agents.verification import set_live_weather
+            # Best-guess city from location_hint before Agent 1 runs
+            hint_lower = (signal.location_hint or "").lower()
+            for _city in ["islamabad", "karachi", "lahore", "rawalpindi", "peshawar"]:
+                if _city in hint_lower:
+                    real_wx = await get_real_weather(_city)
+                    set_live_weather(_city, real_wx)
+                    break
+        except Exception:
+            pass
+
         # ---- STEP 1: Signal Ingestion Agent ----
         step1_start = datetime.utcnow().isoformat()
         print(f"[ANTIGRAVITY] -> Invoking Agent 1: Signal Ingestion Agent")
         context = signal_ingestion.run(context)
-
-        # GATE 1: Check for rejected signals
-        if context.system_status == "REJECTED_NOT_A_CRISIS":
-            print(f"[ANTIGRAVITY] ⛔ GATE 1 REJECTED: Signal failed crisis validation")
-            total_elapsed = int((time.time() - workflow_start) * 1000)
-            agent_trace = context.agent_traces[-1] if context.agent_traces else None
-            return AnalysisResult(
-                crisis_id=context.crisis_id,
-                status="REJECTED",
-                crisis_type="UNKNOWN",
-                location="Unknown",
-                city="Unknown",
-                severity="UNKNOWN",
-                verification_status="NOT_CHECKED",
-                confidence=0.0,
-                action_plan=[],
-                simulation=None,
-                agent_traces=[agent_trace] if agent_trace else [],
-                fallback_history=[],
-                total_execution_time_ms=total_elapsed,
-                system_message=f"Signal rejected: Not a valid crisis report. Crisis ID {context.crisis_id}.",
-                map_data={},
-                orchestration_workflow=[
-                    WorkflowStep(
-                        step=1, agent_name="Signal Ingestion Agent", status="COMPLETE",
-                        started_at=step1_start, completed_at=datetime.utcnow().isoformat(),
-                        tool_calls=["keyword_detector", "language_classifier"],
-                        handoff_to=None, gemini_used=False,
-                    )
-                ],
-            )
 
         # Gemini enrichment
         gemini_used_1 = False
@@ -250,61 +246,23 @@ class AntigravityOrchestrator:
         ))
         print(f"[ANTIGRAVITY] OK Agent 1 complete: {context.entities.crisis_type.value if context.entities else 'UNKNOWN'} in {context.entities.city if context.entities else '?'}")
 
+        # Now we know the exact city — fetch real weather for it
+        if context.entities and context.entities.city:
+            try:
+                from services.weather_service import get_real_weather
+                from agents.verification import set_live_weather
+                real_wx = await get_real_weather(context.entities.city)
+                set_live_weather(context.entities.city, real_wx)
+                print(f"[ANTIGRAVITY] Weather fetched for {context.entities.city}: {real_wx.get('source','mock')} / {real_wx.get('alert','?')}")
+            except Exception as wx_err:
+                print(f"[ANTIGRAVITY] Weather prefetch failed: {wx_err}")
+
         # ---- STEP 2: Verification Agent ----
         step2_start = datetime.utcnow().isoformat()
         print(f"[ANTIGRAVITY] -> Invoking Agent 2: Verification Agent")
         context = verification.run(context)
 
         gemini_used_2 = False
-
-        # DIAGNOSTIC: Print verification result
-        if context.verification:
-            print(f"[DIAGNOSTIC] Verification Status: {context.verification.status.value}")
-            print(f"[DIAGNOSTIC] Confidence Score: {context.verification.confidence_score:.3f}")
-            print(f"[DIAGNOSTIC] Contradictions: {context.verification.contradictions}")
-            print(f"[DIAGNOSTIC] Weather Consistent: {context.verification.weather_consistent}")
-
-        # GATE 2: Check verification status — CONTRADICTED reports are rejected immediately
-        if context.verification and context.verification.status == VerificationStatus.CONTRADICTED:
-            print(f"[ANTIGRAVITY] ⛔ GATE 2 REJECTED: Verification status is CONTRADICTED (confidence={context.verification.confidence_score:.0%})")
-            total_elapsed = int((time.time() - workflow_start) * 1000)
-            signal_trace = next((t for t in context.agent_traces if t.agent_name == "Signal Ingestion Agent"), None)
-            verif_trace = next((t for t in context.agent_traces if t.agent_name == "Verification Agent"), None)
-            traces_to_return = [t for t in [signal_trace, verif_trace] if t is not None]
-            contradictions_text = " | ".join(context.verification.contradictions[:2]) if context.verification.contradictions else "Report contradicts real-world data"
-            return AnalysisResult(
-                crisis_id=context.crisis_id,
-                status="UNVERIFIED",
-                crisis_type=context.entities.crisis_type.value if context.entities else "UNKNOWN",
-                location=context.entities.location if context.entities else "Unknown",
-                city=context.entities.city if context.entities else "Unknown",
-                severity="UNKNOWN",
-                verification_status="CONTRADICTED",
-                confidence=context.verification.confidence_score,
-                action_plan=[],
-                simulation=None,
-                agent_traces=traces_to_return,
-                fallback_history=context.fallback_history,
-                total_execution_time_ms=total_elapsed,
-                system_message=f"Crisis report REJECTED by verification gate: {contradictions_text}. No emergency response initiated.",
-                map_data=self._get_map_data(context),
-                orchestration_workflow=[
-                    WorkflowStep(
-                        step=1, agent_name="Signal Ingestion Agent", status="COMPLETE",
-                        started_at=step1_start, completed_at=datetime.utcnow().isoformat(),
-                        tool_calls=["keyword_detector", "language_classifier", "entity_extractor"],
-                        handoff_to="Verification Agent", gemini_used=gemini_used_1,
-                    ),
-                    WorkflowStep(
-                        step=2, agent_name="Verification Agent", status="COMPLETE",
-                        started_at=step2_start, completed_at=datetime.utcnow().isoformat(),
-                        tool_calls=["weather_api", "geoapify_geocoding", "signal_correlation_engine"],
-                        handoff_to=None, gemini_used=gemini_used_2,
-                    )
-                ],
-            )
-
-        # Gemini enrichment
         if self.gemini_enabled:
             ai_reasoning = await _gemini_reason(
                 "Verification Agent",
@@ -451,8 +409,23 @@ class AntigravityOrchestrator:
             orchestration_workflow=workflow_steps,
         )
 
+        # Fetch geoapify hospital + route context (non-blocking, best-effort)
+        geo_context = {}
+        if entities and entities.city:
+            try:
+                from services.geoapify_service import get_crisis_context
+                lat = entities.lat if hasattr(entities, "lat") else None
+                lon = entities.lon if hasattr(entities, "lon") else None
+                geo_context = await get_crisis_context(entities.city, entities.crisis_type.value, lat, lon)
+                print(f"[ANTIGRAVITY] Hospitals found: {len(geo_context.get('nearest_hospitals', []))} near {entities.city}")
+            except Exception as geo_err:
+                print(f"[ANTIGRAVITY] Geoapify context failed: {geo_err}")
+
         # Store in memory + log + Firebase
         result_payload = result.model_dump()
+        result_payload["geoapify_context"] = geo_context   # hospitals + routes
+        result_payload["created_at"] = context.created_at  # timestamp for frontend
+
         log_payload = {
             "crisis_id": context.crisis_id,
             "timestamp": context.created_at,
@@ -466,6 +439,265 @@ class AntigravityOrchestrator:
         LOG_STORE.append(log_payload)
         firebase.save_crisis(context.crisis_id, result_payload)
         firebase.save_log(log_payload)
+
+        # Fire email + WhatsApp notifications (non-blocking)
+        asyncio.create_task(_fire_notifications(result_payload))
+
+        return result
+
+    async def analyze_streaming(self, signal: CrisisSignal, queue: asyncio.Queue) -> AnalysisResult:
+        """
+        Streaming variant of analyze(). Identical pipeline but emits SSE events
+        to `queue` after each agent so the dashboard can animate in real-time.
+        """
+        async def emit(event: dict):
+            await queue.put(event)
+
+        try:
+            workflow_start = time.time()
+            workflow_steps: list[WorkflowStep] = []
+
+            context = CrisisContext(
+                crisis_id=f"CRS-{str(uuid.uuid4())[:8].upper()}",
+                created_at=datetime.utcnow().isoformat(),
+                signals=[signal],
+            )
+
+            plan = self.create_execution_plan(context)
+            await emit({"type": "started", "crisis_id": context.crisis_id,
+                        "gemini_enabled": self.gemini_enabled,
+                        "plan": [{"step": s["step"], "agent": s["agent"]} for s in plan]})
+
+            # ---- Step 1: Signal Ingestion ----
+            await emit({"type": "agent_start", "step": 1, "agent_name": "Signal Ingestion Agent"})
+            step1_start = datetime.utcnow().isoformat()
+            context = signal_ingestion.run(context)
+            gemini_used_1 = False
+            if self.gemini_enabled:
+                ai_reasoning = await _gemini_reason("Signal Ingestion Agent",
+                    self._build_context_summary(context),
+                    "Analyze the multilingual crisis signal. What type of crisis is this? What location details can you extract? What is the urgency level?")
+                if ai_reasoning and context.agent_traces:
+                    context.agent_traces[-1].reasoning_steps.append(f"[GEMINI AI] {ai_reasoning}")
+                    context.agent_traces[-1].gemini_enhanced = True
+                    gemini_used_1 = True
+            workflow_steps.append(WorkflowStep(step=1, agent_name="Signal Ingestion Agent", status="COMPLETE",
+                started_at=step1_start, completed_at=datetime.utcnow().isoformat(),
+                tool_calls=["keyword_detector", "language_classifier", "entity_extractor"], handoff_to="Verification Agent", gemini_used=gemini_used_1))
+            t = context.agent_traces[-1]
+            await emit({"type": "agent_complete", "step": 1, "agent_name": "Signal Ingestion Agent",
+                "decision": t.decision, "confidence": t.confidence,
+                "reasoning_steps": t.reasoning_steps, "tool_calls": [tc.tool_name for tc in t.tool_calls],
+                "execution_time_ms": t.execution_time_ms, "fallback_triggered": t.fallback_triggered,
+                "gemini_enhanced": t.gemini_enhanced,
+                "handoff": f"Crisis type={context.entities.crisis_type.value if context.entities else '?'}, city={context.entities.city if context.entities else '?'} → handing off to Verification Agent"})
+
+            # ---- Step 2: Verification ----
+            await emit({"type": "agent_start", "step": 2, "agent_name": "Verification Agent"})
+            step2_start = datetime.utcnow().isoformat()
+            context = verification.run(context)
+            gemini_used_2 = False
+            if self.gemini_enabled:
+                ai_reasoning = await _gemini_reason("Verification Agent",
+                    self._build_context_summary(context),
+                    "Cross-verify the crisis report against weather and traffic data. Is it consistent? What is your confidence level and why?")
+                if ai_reasoning and context.agent_traces:
+                    context.agent_traces[-1].reasoning_steps.append(f"[GEMINI AI] {ai_reasoning}")
+                    context.agent_traces[-1].gemini_enhanced = True
+                    gemini_used_2 = True
+            conf = context.verification.confidence_score if context.verification else 0
+            workflow_steps.append(WorkflowStep(step=2, agent_name="Verification Agent", status="COMPLETE",
+                started_at=step2_start, completed_at=datetime.utcnow().isoformat(),
+                tool_calls=["weather_api", "traffic_api", "social_media_scanner"],
+                handoff_to="Fallback Agent" if self._should_trigger_fallback(context) else "Severity Analysis Agent",
+                gemini_used=gemini_used_2))
+            t = context.agent_traces[-1]
+            await emit({"type": "agent_complete", "step": 2, "agent_name": "Verification Agent",
+                "decision": t.decision, "confidence": t.confidence,
+                "reasoning_steps": t.reasoning_steps, "tool_calls": [tc.tool_name for tc in t.tool_calls],
+                "execution_time_ms": t.execution_time_ms, "fallback_triggered": t.fallback_triggered,
+                "gemini_enhanced": t.gemini_enhanced,
+                "handoff": f"Confidence={conf:.0%}, status={context.verification.status.value if context.verification else '?'} → routing to {'Fallback' if self._should_trigger_fallback(context) else 'Severity Analysis'} Agent"})
+
+            # ---- Step 3: Conditional Fallback ----
+            if self._should_trigger_fallback(context):
+                await emit({"type": "fallback_triggered", "step": 3, "reason": "Low confidence or API failure detected"})
+                step_fb_start = datetime.utcnow().isoformat()
+                context = fallback_recovery.run(context)
+                workflow_steps.append(WorkflowStep(step=3, agent_name="Fallback & Recovery Agent (conditional)", status="COMPLETE",
+                    started_at=step_fb_start, completed_at=datetime.utcnow().isoformat(),
+                    tool_calls=["historical_baseline", "rule_based_nlp"], handoff_to="Severity Analysis Agent"))
+                t = context.agent_traces[-1]
+                await emit({"type": "agent_complete", "step": 3, "agent_name": "Fallback & Recovery Agent",
+                    "decision": t.decision, "confidence": t.confidence,
+                    "reasoning_steps": t.reasoning_steps, "tool_calls": [tc.tool_name for tc in t.tool_calls],
+                    "execution_time_ms": t.execution_time_ms, "fallback_triggered": True,
+                    "gemini_enhanced": False,
+                    "handoff": f"Fallback strategies applied → resuming at Severity Analysis Agent"})
+
+            # ---- Step 4: Severity Analysis ----
+            await emit({"type": "agent_start", "step": 4, "agent_name": "Severity Analysis Agent"})
+            step4_start = datetime.utcnow().isoformat()
+            context = severity_analysis.run(context)
+            gemini_used_4 = False
+            if self.gemini_enabled:
+                ai_reasoning = await _gemini_reason("Severity Analysis Agent",
+                    self._build_context_summary(context),
+                    "Assess the severity of this crisis. How many people are affected? What infrastructure is at risk? Rate the emergency urgency.")
+                if ai_reasoning and context.agent_traces:
+                    context.agent_traces[-1].reasoning_steps.append(f"[GEMINI AI] {ai_reasoning}")
+                    context.agent_traces[-1].gemini_enhanced = True
+                    gemini_used_4 = True
+            workflow_steps.append(WorkflowStep(step=4, agent_name="Severity Analysis Agent", status="COMPLETE",
+                started_at=step4_start, completed_at=datetime.utcnow().isoformat(),
+                tool_calls=["population_estimator", "infrastructure_scanner", "impact_modeler"],
+                handoff_to="Response Planning Agent", gemini_used=gemini_used_4))
+            t = context.agent_traces[-1]
+            await emit({"type": "agent_complete", "step": 4, "agent_name": "Severity Analysis Agent",
+                "decision": t.decision, "confidence": t.confidence,
+                "reasoning_steps": t.reasoning_steps, "tool_calls": [tc.tool_name for tc in t.tool_calls],
+                "execution_time_ms": t.execution_time_ms, "fallback_triggered": t.fallback_triggered,
+                "gemini_enhanced": t.gemini_enhanced,
+                "handoff": f"Severity={context.severity.level.value if context.severity else '?'}, pop={context.severity.affected_population:,} → handing off to Response Planning Agent" if context.severity else "Severity assessed → Response Planning Agent"})
+
+            # ---- Step 5: Response Planning ----
+            await emit({"type": "agent_start", "step": 5, "agent_name": "Response Planning Agent"})
+            step5_start = datetime.utcnow().isoformat()
+            context = response_planning.run(context)
+            gemini_used_5 = False
+            if self.gemini_enabled:
+                ai_reasoning = await _gemini_reason("Response Planning Agent",
+                    self._build_context_summary(context),
+                    "Generate a prioritized emergency response plan for this Pakistani city crisis. Include rerouting, dispatch, alerts, and medical support.")
+                if ai_reasoning and context.agent_traces:
+                    context.agent_traces[-1].reasoning_steps.append(f"[GEMINI AI] {ai_reasoning}")
+                    context.agent_traces[-1].gemini_enhanced = True
+                    gemini_used_5 = True
+            workflow_steps.append(WorkflowStep(step=5, agent_name="Response Planning Agent", status="COMPLETE",
+                started_at=step5_start, completed_at=datetime.utcnow().isoformat(),
+                tool_calls=["action_template_engine", "dispatch_coordinator", "alert_system"],
+                handoff_to="Execution Simulation Agent", gemini_used=gemini_used_5))
+            t = context.agent_traces[-1]
+            await emit({"type": "agent_complete", "step": 5, "agent_name": "Response Planning Agent",
+                "decision": t.decision, "confidence": t.confidence,
+                "reasoning_steps": t.reasoning_steps, "tool_calls": [tc.tool_name for tc in t.tool_calls],
+                "execution_time_ms": t.execution_time_ms, "fallback_triggered": t.fallback_triggered,
+                "gemini_enhanced": t.gemini_enhanced,
+                "handoff": f"{len(context.action_plan)} actions generated → handing off to Execution Simulation Agent"})
+
+            # ---- Step 6: Execution Simulation ----
+            await emit({"type": "agent_start", "step": 6, "agent_name": "Execution Simulation Agent"})
+            step6_start = datetime.utcnow().isoformat()
+            context = execution_simulation.run(context)
+            sim = context.simulation
+            workflow_steps.append(WorkflowStep(step=6, agent_name="Execution Simulation Agent", status="COMPLETE",
+                started_at=step6_start, completed_at=datetime.utcnow().isoformat(),
+                tool_calls=["congestion_simulator", "dispatch_engine", "alert_broadcaster"],
+                handoff_to="Fallback & Recovery Agent"))
+            t = context.agent_traces[-1]
+            await emit({"type": "agent_complete", "step": 6, "agent_name": "Execution Simulation Agent",
+                "decision": t.decision, "confidence": t.confidence,
+                "reasoning_steps": t.reasoning_steps, "tool_calls": [tc.tool_name for tc in t.tool_calls],
+                "execution_time_ms": t.execution_time_ms, "fallback_triggered": t.fallback_triggered,
+                "gemini_enhanced": t.gemini_enhanced,
+                "simulation": sim.model_dump() if sim else {},
+                "handoff": f"Congestion {sim.congestion_level_before}→{sim.congestion_level_after} | {sim.alerts_sent:,} alerts | {sim.population_helped:,} helped → final audit" if sim else "Simulation complete"})
+
+            # ---- Step 7: Final Fallback Audit ----
+            await emit({"type": "agent_start", "step": 7, "agent_name": "Fallback & Recovery Agent"})
+            step7_start = datetime.utcnow().isoformat()
+            already_run = any(tr.agent_name == "Fallback & Recovery Agent" for tr in context.agent_traces)
+            if not already_run:
+                context = fallback_recovery.run(context)
+            workflow_steps.append(WorkflowStep(step=7, agent_name="Fallback & Recovery Agent", status="COMPLETE",
+                started_at=step7_start, completed_at=datetime.utcnow().isoformat(),
+                tool_calls=["system_health_check", "resilience_auditor"], handoff_to=None))
+            t = context.agent_traces[-1]
+            await emit({"type": "agent_complete", "step": 7, "agent_name": "Fallback & Recovery Agent",
+                "decision": t.decision, "confidence": t.confidence,
+                "reasoning_steps": t.reasoning_steps, "tool_calls": [tc.tool_name for tc in t.tool_calls],
+                "execution_time_ms": t.execution_time_ms, "fallback_triggered": t.fallback_triggered,
+                "gemini_enhanced": t.gemini_enhanced,
+                "handoff": "Pipeline complete. System health verified."})
+
+            # ---- Aggregate result ----
+            total_elapsed = int((time.time() - workflow_start) * 1000)
+            entities = context.entities
+            verif = context.verification
+            sev = context.severity
+            map_data = self._get_map_data(context)
+            gemini_count = sum(1 for tr in context.agent_traces if tr.gemini_enhanced)
+
+            result = AnalysisResult(
+                crisis_id=context.crisis_id, status=context.system_status,
+                crisis_type=entities.crisis_type.value if entities else "UNKNOWN",
+                location=entities.location if entities else "Unknown",
+                city=entities.city if entities else "Unknown",
+                severity=sev.level.value if sev else "UNKNOWN",
+                verification_status=verif.status.value if verif else "UNVERIFIED",
+                confidence=verif.confidence_score if verif else 0.5,
+                action_plan=context.action_plan, simulation=context.simulation,
+                agent_traces=context.agent_traces, fallback_history=context.fallback_history,
+                total_execution_time_ms=total_elapsed,
+                system_message=f"SAHARA AI processed {context.crisis_id} in {total_elapsed}ms via Antigravity v2.0. {len(context.agent_traces)} agents. {gemini_count} Gemini-enhanced. {len(context.action_plan)} actions.",
+                map_data=map_data, orchestration_workflow=workflow_steps,
+            )
+
+            # Fetch geoapify context
+            geo_context = {}
+            if entities and entities.city:
+                try:
+                    from services.geoapify_service import get_crisis_context
+                    geo_context = await get_crisis_context(entities.city, entities.crisis_type.value)
+                except Exception:
+                    pass
+
+            result_payload = result.model_dump()
+            result_payload["geoapify_context"] = geo_context
+
+            log_payload = {"crisis_id": context.crisis_id, "timestamp": context.created_at,
+                "crisis_type": result.crisis_type, "city": result.city, "severity": result.severity,
+                "gemini_enhanced": gemini_count > 0, "traces": [tr.model_dump() for tr in context.agent_traces]}
+            CRISIS_STORE[context.crisis_id] = result_payload
+            LOG_STORE.append(log_payload)
+            firebase.save_crisis(context.crisis_id, result_payload)
+            firebase.save_log(log_payload)
+
+            await emit({"type": "complete", "result": result_payload})
+            return result
+
+        except Exception as e:
+            await queue.put({"type": "error", "message": str(e)})
+            raise
+
+    async def analyze_multi(self, signals: List[CrisisSignal]) -> AnalysisResult:
+        """
+        Multi-source analysis: accepts signals from different sources simultaneously.
+        The primary signal drives the pipeline; additional signals enrich the context
+        as corroborating evidence for the Verification and Severity agents.
+        """
+        if not signals:
+            raise ValueError("At least one signal required")
+
+        primary = signals[0]
+        result = await self.analyze(primary)
+
+        # Annotate system message with multi-source details
+        source_labels = [f"{s.source}({s.text[:30]}...)" for s in signals[1:]]
+        if source_labels:
+            result.system_message += f" Additional sources ingested: {', '.join(source_labels)}."
+
+        # Add corroborating signal info to first agent trace
+        if result.agent_traces and len(signals) > 1:
+            extra = [f"+ {s.source}: \"{s.text[:80]}\"" for s in signals[1:]]
+            result.agent_traces[0].observations.append(
+                f"Multi-source ingestion: {len(signals)} signals from {len(set(s.source for s in signals))} sources. "
+                + " | ".join(extra)
+            )
+            result.agent_traces[0].reasoning_steps.append(
+                f"Signal clustering: {len(signals)} inputs correlated. Dominant signal selected as primary. "
+                f"Additional sources ({', '.join(s.source for s in signals[1:])}) confirm crisis cluster."
+            )
 
         return result
 

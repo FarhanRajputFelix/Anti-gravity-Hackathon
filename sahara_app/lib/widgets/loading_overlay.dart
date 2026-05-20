@@ -58,7 +58,7 @@ class _LoadingOverlayState extends State<LoadingOverlay>
     if (!widget.visible) return const SizedBox.shrink();
 
     return Container(
-      color: AppTheme.midnight.withValues(alpha: 0.92),
+      color: AppTheme.midnight.withOpacity(0.92),
       child: Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -82,7 +82,7 @@ class _LoadingOverlayState extends State<LoadingOverlay>
                           gradient: SweepGradient(
                             colors: [
                               AppTheme.electricBlue,
-                              AppTheme.electricBlue.withValues(alpha: 0),
+                              AppTheme.electricBlue.withOpacity(0),
                             ],
                           ),
                         ),

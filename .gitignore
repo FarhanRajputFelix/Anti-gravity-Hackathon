@@ -25,3 +25,19 @@ download_flutter.py
 remove_fonts.py
 flutter_windows.zip
 flutter_sdk.zip
+
+# Accidental temp files
+UsersLaptronics.coAppDataLocalTempngrok.zip
+*.zip
+
+# Flutter build output
+sahara_app/build/
+sahara_app/.dart_tool/
+
+# Python caches
+sahara_backend/services/__pycache__/
+sahara_backend/agents/__pycache__/
+sahara_backend/routers/__pycache__/
+
+# Logs
+*.log

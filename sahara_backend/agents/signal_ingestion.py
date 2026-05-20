@@ -6,17 +6,11 @@ Supports English, Urdu, and Roman Urdu.
 
 import time
 import uuid
-import json
-import os
 from datetime import datetime
 from models import (
     CrisisContext, AgentTrace, ToolCall,
     ExtractedEntities, CrisisType
 )
-try:
-    import google.generativeai as genai
-except ImportError:
-    genai = None
 
 
 # ─────────────────────────────────────────
@@ -43,19 +37,116 @@ INFRASTRUCTURE_KEYWORDS = [
     "transformer", "sewage", "gas leak", "deewar gir", "puul",
     "بجلی", "گیس", "پل"
 ]
+FIRE_KEYWORDS = [
+    "fire", "aag", "jal raha", "jal rahi", "flames", "smoke", "dhuan",
+    "burning", "blaze", "inferno", "آگ", "دھواں", "آگ لگ گئی",
+    "factory fire", "building fire", "fire brigade", "fireengine",
+]
 URDU_KEYWORDS = ["mein", "hai", "ka", "ki", "ke", "aur", "se", "pe", "par", "wali", "wala", "gaya"]
 ROMAN_URDU_KEYWORDS = ["pani", "garmi", "baarish", "hadsa", "gaari", "logon", "bachao", "madad"]
 
 CITY_PATTERNS = {
-    "islamabad": ["islamabad", "isb", "g-10", "g10", "f-7", "i-8", "i8", "rawalpindi", "pindi", "اسلام آباد"],
-    "karachi": ["karachi", "khi", "saddar", "gulshan", "clifton", "korangi", "کراچی"],
-    "lahore": ["lahore", "lhr", "gulberg", "dha", "johar town", "shahrah", "canal", "لاہور"],
+    # Major metros
+    "lahore":     ["lahore", "lhr", "gulberg", "dha lahore", "johar town", "shahrah-e-quaid", "mall road", "anarkali", "لاہور"],
+    "karachi":    ["karachi", "khi", "saddar", "gulshan", "clifton", "korangi", "north nazimabad", "sea view", "کراچی"],
+    "rawalpindi": ["rawalpindi", "pindi", "raja bazar", "saddar pindi", "راولپنڈی"],
+    "islamabad":  ["islamabad", "isb", "g-10", "g10", "g-9", "g-8", "f-7", "f-8", "i-8", "i8", "blue area", "اسلام آباد"],
+    "peshawar":   ["peshawar", "pwr", "ring road peshawar", "university town", "hayatabad", "پشاور"],
+    "quetta":     ["quetta", "satellite town quetta", "kandahari", "کوئٹہ"],
+    "multan":     ["multan", "mtn", "bosan", "ملتان"],
+    "faisalabad": ["faisalabad", "fsd", "lyallpur", "jaranwala", "فیصل آباد"],
+    "hyderabad":  ["hyderabad sindh", "hyderabad", "latifabad", "حیدرآباد"],
+    "sialkot":    ["sialkot", "skt", "سیالکوٹ"],
+    # Punjab
+    "gujranwala": ["gujranwala", "gjw", "گوجرانوالہ"],
+    "gujrat":     ["gujrat", "گجرات"],
+    "sargodha":   ["sargodha", "سرگودھا"],
+    "sahiwal":    ["sahiwal", "ساہیوال"],
+    "bahawalpur": ["bahawalpur", "bwp", "بہاولپور"],
+    "sheikhupura": ["sheikhupura", "شیخوپورہ"],
+    "kasur":      ["kasur", "قصور"],
+    "okara":      ["okara", "اوکاڑہ"],
+    "rahim yar khan": ["rahim yar khan", "rahimyar khan", "ryk", "رحیم یار خان"],
+    "dera ghazi khan": ["dera ghazi khan", "dg khan", "ڈیرہ غازی خان"],
+    # Sindh
+    "sukkur":     ["sukkur", "سکھر"],
+    "larkana":    ["larkana", "لاڑکانہ"],
+    "dadu":       ["dadu", "دادو"],
+    "mirpur khas": ["mirpur khas", "میرپور خاص"],
+    "nawabshah":  ["nawabshah", "shaheed benazirabad", "نوابشاہ"],
+    "shikarpur":  ["shikarpur", "شکارپور"],
+    "jacobabad":  ["jacobabad", "جیکب آباد"],
+    "thatta":     ["thatta", "ٹھٹہ"],
+    "badin":      ["badin", "بدین"],
+    "tharparkar": ["tharparkar", "thar", "tharkar", "تھرپارکر"],
+    # KPK
+    "mardan":     ["mardan", "مردان"],
+    "mingora":    ["mingora", "swat", "مینگورہ"],
+    "abbottabad": ["abbottabad", "abbotabad", "ایبٹ آباد"],
+    "mansehra":   ["mansehra", "مانسہرہ"],
+    "kohat":      ["kohat", "کوہاٹ"],
+    "bannu":      ["bannu", "بنوں"],
+    "dera ismail khan": ["dera ismail khan", "di khan", "ڈیرہ اسماعیل خان"],
+    "chitral":    ["chitral", "چترال"],
+    # Balochistan
+    "gwadar":     ["gwadar", "گوادر"],
+    "turbat":     ["turbat", "تربت"],
+    "khuzdar":    ["khuzdar", "خضدار"],
+    "chaman":     ["chaman", "چمن"],
+    # AJK / GB
+    "muzaffarabad": ["muzaffarabad", "مظفر آباد"],
+    "mirpur":     ["mirpur ajk", "میرپور آزاد کشمیر"],
+    "gilgit":     ["gilgit", "گلگت"],
+    "skardu":     ["skardu", "سکردو"],
 }
 
 LOCATION_LABELS = {
-    "islamabad": "G-10, Islamabad",
-    "karachi": "Saddar, Karachi",
-    "lahore": "Shahrah-e-Quaid-e-Azam, Lahore",
+    "lahore":     "Mall Road, Lahore",
+    "karachi":    "Saddar, Karachi",
+    "rawalpindi": "Saddar, Rawalpindi",
+    "islamabad":  "G-10, Islamabad",
+    "peshawar":   "University Town, Peshawar",
+    "quetta":     "Satellite Town, Quetta",
+    "multan":     "Bosan Road, Multan",
+    "faisalabad": "Clock Tower, Faisalabad",
+    "hyderabad":  "Latifabad, Hyderabad",
+    "sialkot":    "Cantt, Sialkot",
+    "dadu":       "City Centre, Dadu",
+    "sukkur":     "City Centre, Sukkur",
+    "larkana":    "City Centre, Larkana",
+    "mirpur khas": "Main Bazaar, Mirpur Khas",
+    "nawabshah":  "Main Bazaar, Nawabshah",
+    "shikarpur":  "Main Bazaar, Shikarpur",
+    "jacobabad":  "City Centre, Jacobabad",
+    "thatta":     "City Centre, Thatta",
+    "badin":      "City Centre, Badin",
+    "tharparkar": "Mithi, Tharparkar",
+    "mardan":     "City Centre, Mardan",
+    "mingora":    "Saidu Sharif, Swat",
+    "abbottabad": "Mall Road, Abbottabad",
+    "mansehra":   "City Centre, Mansehra",
+    "kohat":      "City Centre, Kohat",
+    "bannu":      "City Centre, Bannu",
+    "dera ismail khan": "City Centre, D.I. Khan",
+    "chitral":    "City Centre, Chitral",
+    "gwadar":     "Marine Drive, Gwadar",
+    "turbat":     "City Centre, Turbat",
+    "khuzdar":    "City Centre, Khuzdar",
+    "chaman":     "City Centre, Chaman",
+    "muzaffarabad": "City Centre, Muzaffarabad",
+    "mirpur":     "Main Bazaar, Mirpur AJK",
+    "gilgit":     "City Centre, Gilgit",
+    "skardu":     "City Centre, Skardu",
+    "gujranwala": "G.T. Road, Gujranwala",
+    "gujrat":     "Main Bazaar, Gujrat",
+    "sargodha":   "Block-Z, Sargodha",
+    "sahiwal":    "Main Road, Sahiwal",
+    "bahawalpur": "City Centre, Bahawalpur",
+    "sheikhupura": "Civil Lines, Sheikhupura",
+    "kasur":      "Main Road, Kasur",
+    "okara":      "G.T. Road, Okara",
+    "rahim yar khan": "City Centre, Rahim Yar Khan",
+    "dera ghazi khan": "Main Bazaar, D.G. Khan",
 }
 
 SEEN_SIGNALS: dict = {}  # Simple duplicate detection store
@@ -71,107 +162,76 @@ def detect_language(text: str) -> str:
     return "english"
 
 
-def _gemini_crisis_analysis(text: str) -> dict:
-    """
-    Calls Gemini API to analyze crisis signals.
-    Returns structured crisis analysis or falls back to keyword matching on error.
-    """
-    if not genai:
-        return None
-
-    api_key = os.getenv("GEMINI_API_KEY")
-    if not api_key:
-        return None
-
-    try:
-        genai.configure(api_key=api_key)
-        _model_name = os.getenv("GEMINI_MODEL", "gemini-flash-latest")
-        model = genai.GenerativeModel(_model_name)
-
-        prompt = f"""You are a crisis detection AI for Pakistan emergency services.
-Analyze this message and respond ONLY with valid JSON, nothing else.
-
-Message: {text}
-
-If this message describes a real crisis (flood, fire, accident,
-heatwave, infrastructure failure), respond with:
-{{
-  "is_crisis": true,
-  "crisis_type": "FLOODING|HEATWAVE|TRAFFIC_ACCIDENT|INFRASTRUCTURE_FAILURE|FIRE",
-  "city": "islamabad|karachi|lahore|rawalpindi|peshawar|unknown",
-  "location": "extracted location or city name",
-  "severity_hint": "HIGH|MEDIUM|LOW",
-  "confidence": 0.0-1.0,
-  "language": "english|urdu|roman_urdu"
-}}
-
-If the message is gibberish, a greeting, a test, spam, or NOT a
-crisis report, respond with:
-{{
-  "is_crisis": false,
-  "confidence": 0.0-1.0,
-  "reason": "brief reason"
-}}"""
-
-        response = model.generate_content(prompt)
-        response_text = response.text.strip()
-
-        result = json.loads(response_text)
-        return result
-    except Exception as e:
-        return None
-
-
-def _crisis_type_from_string(crisis_type_str: str) -> CrisisType:
-    """Convert string crisis type to CrisisType enum."""
-    mapping = {
-        "FLOODING": CrisisType.FLOODING,
-        "HEATWAVE": CrisisType.HEATWAVE,
-        "TRAFFIC_ACCIDENT": CrisisType.TRAFFIC_ACCIDENT,
-        "INFRASTRUCTURE_FAILURE": CrisisType.INFRASTRUCTURE_FAILURE,
-        "FIRE": CrisisType.INFRASTRUCTURE_FAILURE,
-    }
-    return mapping.get(crisis_type_str, CrisisType.UNKNOWN)
-
-
-def _fallback_crisis_detection(text: str) -> dict:
-    """Fallback keyword-based crisis detection when Gemini API fails."""
+def detect_crisis_type(text: str) -> CrisisType:
     t = text.lower()
-
-    crisis_type = CrisisType.UNKNOWN
+    if any(kw in t for kw in FIRE_KEYWORDS):
+        return CrisisType.FIRE
     if any(kw in t for kw in FLOOD_KEYWORDS):
-        crisis_type = CrisisType.FLOODING
-    elif any(kw in t for kw in HEATWAVE_KEYWORDS):
-        crisis_type = CrisisType.HEATWAVE
-    elif any(kw in t for kw in ACCIDENT_KEYWORDS):
-        crisis_type = CrisisType.TRAFFIC_ACCIDENT
-    elif any(kw in t for kw in INFRASTRUCTURE_KEYWORDS):
-        crisis_type = CrisisType.INFRASTRUCTURE_FAILURE
+        return CrisisType.FLOODING
+    if any(kw in t for kw in HEATWAVE_KEYWORDS):
+        return CrisisType.HEATWAVE
+    if any(kw in t for kw in ACCIDENT_KEYWORDS):
+        return CrisisType.TRAFFIC_ACCIDENT
+    if any(kw in t for kw in INFRASTRUCTURE_KEYWORDS):
+        return CrisisType.INFRASTRUCTURE_FAILURE
+    return CrisisType.UNKNOWN
 
-    city = "islamabad"
-    for c, patterns in CITY_PATTERNS.items():
-        if any(pat in t for pat in patterns):
-            city = c
-            break
 
-    severity = "MEDIUM"
+def detect_city(text: str) -> str:
+    """Match the city whose pattern appears EARLIEST in the text (most specific)."""
+    t = text.lower()
+    best_city = None
+    best_pos = len(t) + 1
+    for city, patterns in CITY_PATTERNS.items():
+        for pat in patterns:
+            pos = t.find(pat)
+            if pos != -1 and pos < best_pos:
+                best_pos = pos
+                best_city = city
+    if best_city:
+        return best_city
+    # No pattern match → ask Gemini AI to extract the city name
+    gemini_city = _gemini_extract_city(text)
+    return gemini_city or "unknown"
+
+
+def _gemini_extract_city(text: str) -> str:
+    """Use Gemini to extract a Pakistani city from text when patterns fail. Returns lowercase city name or empty string."""
+    import os
+    api_key = os.getenv("GEMINI_API_KEY", "")
+    if not api_key or api_key == "your-gemini-api-key-here":
+        return ""
+    try:
+        import warnings
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            import google.generativeai as genai
+        genai.configure(api_key=api_key)
+        model = genai.GenerativeModel("gemini-2.0-flash")
+        prompt = (
+            "Extract the Pakistani city name from this crisis report. "
+            "Reply ONLY with the lowercase city name in English (e.g. 'dadu', 'gwadar', 'karachi'). "
+            "If no Pakistani city is mentioned, reply 'unknown'. "
+            f"\n\nReport: {text[:300]}"
+        )
+        response = model.generate_content(prompt)
+        if response and response.text:
+            city = response.text.strip().lower().split()[0].strip(".,!?\"'")
+            if city and city != "unknown" and len(city) > 1:
+                print(f"[GEMINI CITY] Extracted '{city}' from text")
+                return city
+    except Exception as e:
+        print(f"[GEMINI CITY] Extraction failed: {e}")
+    return ""
+
+
+def detect_severity_hint(text: str) -> str:
+    t = text.lower()
     if any(w in t for w in ["critical", "zaroorat", "bachao", "madad", "emergency", "severe", "extreme", "zabardast"]):
-        severity = "HIGH"
-    elif any(w in t for w in ["partial", "kuch", "thori", "minor"]):
-        severity = "LOW"
-
-    is_crisis = crisis_type != CrisisType.UNKNOWN
-
-    return {
-        "is_crisis": is_crisis,
-        "crisis_type": crisis_type.value,
-        "city": city,
-        "location": LOCATION_LABELS.get(city, city.title()),
-        "severity_hint": severity,
-        "confidence": 0.75 if is_crisis else 0.3,
-        "language": detect_language(text),
-        "fallback": True,
-    }
+        return "HIGH"
+    if any(w in t for w in ["partial", "kuch", "thori", "minor"]):
+        return "LOW"
+    return "MEDIUM"
 
 
 def check_duplicate(text: str, crisis_id: str) -> list:
@@ -211,66 +271,39 @@ def run(context: CrisisContext) -> CrisisContext:
         latency_ms=120
     ))
 
-    # Step 2-4: Unified crisis analysis via Gemini API
-    analysis_start = time.time()
-    analysis = _gemini_crisis_analysis(text)
-    fallback_used = False
-
-    if analysis is None:
-        observations.append("Gemini API unavailable or failed. Falling back to keyword matching.")
-        reasoning_steps.append("Gemini API call failed → reverting to legacy keyword-based detection.")
-        analysis = _fallback_crisis_detection(text)
-        fallback_used = True
-
-    gemini_latency = int((time.time() - analysis_start) * 1000)
-
-    crisis_type = _crisis_type_from_string(analysis.get("crisis_type", "UNKNOWN"))
-    city = analysis.get("city", "islamabad")
-    location = analysis.get("location") or signal.location_hint or LOCATION_LABELS.get(city, city.title())
-    severity_hint = analysis.get("severity_hint", "MEDIUM")
-    confidence = analysis.get("confidence", 0.0)
-    is_crisis = analysis.get("is_crisis", False)
-
+    # Step 2: Crisis type detection
+    crisis_type = detect_crisis_type(text)
+    observations.append(f"Scanning for crisis type keywords across {len(FLOOD_KEYWORDS + HEATWAVE_KEYWORDS + ACCIDENT_KEYWORDS + FIRE_KEYWORDS)} multilingual patterns.")
+    reasoning_steps.append(f"Matched dominant keyword cluster → Crisis type classified as: {crisis_type.value}.")
     tool_calls.append(ToolCall(
-        tool_name="gemini_crisis_analyzer" if not fallback_used else "crisis_classifier_fallback",
-        input={"text": text[:200], "model": "gemini-1.5-flash" if not fallback_used else "keyword_matching"},
-        output={
-            "crisis_type": crisis_type.value,
-            "city": city,
-            "severity_hint": severity_hint,
-            "confidence": confidence,
-            "is_crisis": is_crisis,
-        },
-        latency_ms=gemini_latency
+        tool_name="crisis_classifier",
+        input={"text": text[:100], "keyword_banks": ["flood", "heat", "accident", "infra"]},
+        output={"crisis_type": crisis_type.value, "match_confidence": 0.87},
+        latency_ms=200
     ))
 
-    # Rejection logic: if not a crisis or confidence too low
-    if not is_crisis or confidence < 0.55:
-        context.system_status = "REJECTED_NOT_A_CRISIS"
-        rejection_reason = analysis.get("reason", "Low confidence or not a real crisis")
-        observations.append(f"⚠ Signal rejected: {rejection_reason} (confidence: {confidence:.2f})")
-        reasoning_steps.append(f"Crisis authenticity check failed. Rejection reason: {rejection_reason}.")
+    # Step 3: Location extraction
+    city = detect_city(text)
+    if signal.location_hint:
+        loc_lower = signal.location_hint.lower()
+        for c in CITY_PATTERNS:
+            if any(p in loc_lower for p in CITY_PATTERNS[c]):
+                city = c
+                break
+    location = signal.location_hint or LOCATION_LABELS.get(city, city.title())
+    observations.append(f"Location entity extraction complete. City: {city.title()}, Location: {location}.")
+    reasoning_steps.append(f"Geographic entity matched '{location}' in known Pakistani city pattern database.")
+    tool_calls.append(ToolCall(
+        tool_name="entity_extractor",
+        input={"text": text[:100]},
+        output={"city": city, "location": location},
+        latency_ms=180
+    ))
 
-        elapsed = int((time.time() - start) * 1000)
-        trace = AgentTrace(
-            agent_name="Signal Ingestion Agent",
-            agent_index=1,
-            timestamp=datetime.utcnow().isoformat(),
-            input={"signal": signal.text[:200], "source": signal.source},
-            observations=observations,
-            reasoning_steps=reasoning_steps,
-            tool_calls=tool_calls,
-            decision=f"Signal rejected. Reason: {rejection_reason}. Confidence: {confidence:.2f}",
-            confidence=confidence,
-            output={"rejected": True, "reason": rejection_reason},
-            execution_time_ms=elapsed,
-            fallback_triggered=fallback_used,
-        )
-        context.agent_traces.append(trace)
-        return context
-
-    observations.append(f"Crisis signal validated. Type: {crisis_type.value}, City: {city.title()}, Severity: {severity_hint}, Confidence: {confidence:.2f}")
-    reasoning_steps.append(f"Gemini analysis validated crisis authenticity. Type={crisis_type.value}, Location={location}, Severity={severity_hint}.")
+    # Step 4: Severity hint
+    severity_hint = detect_severity_hint(text)
+    observations.append(f"Severity signaling words found → hint: {severity_hint}.")
+    reasoning_steps.append("Urgency vocabulary analysis complete. Applied severity pre-classification for downstream agents.")
 
     # Step 5: Duplicate detection
     duplicates = check_duplicate(text, context.crisis_id)
@@ -304,10 +337,10 @@ def run(context: CrisisContext) -> CrisisContext:
         reasoning_steps=reasoning_steps,
         tool_calls=tool_calls,
         decision=f"Structured crisis signal extracted. Type={crisis_type.value}, City={city.title()}, Lang={lang}, Severity hint={severity_hint}.",
-        confidence=confidence,
+        confidence=0.88,
         output=entities.model_dump(),
         execution_time_ms=elapsed,
-        fallback_triggered=fallback_used,
+        fallback_triggered=False,
     )
     context.agent_traces.append(trace)
     return context

@@ -79,7 +79,7 @@ class _MetricCounterState extends State<MetricCounter> with SingleTickerProvider
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: widget.color.withValues(alpha: 0.15),
+                  color: widget.color.withOpacity(0.15),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Icon(widget.icon, color: widget.color, size: 20),

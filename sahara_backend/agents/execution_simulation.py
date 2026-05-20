@@ -20,6 +20,7 @@ def simulate_congestion_reduction(crisis_type: CrisisType, severity: SeverityLev
         CrisisType.HEATWAVE: (72, 55),
         CrisisType.TRAFFIC_ACCIDENT: (91, 38),
         CrisisType.INFRASTRUCTURE_FAILURE: (80, 45),
+        CrisisType.FIRE: (85, 28),
         CrisisType.UNKNOWN: (65, 50),
     }
     before, after = base_map.get(crisis_type, (70, 40))

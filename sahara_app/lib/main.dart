@@ -78,7 +78,7 @@ class _MainShellState extends State<MainShell> {
         ...result,
         'analyzed_at': DateTime.now().toIso8601String(),
       });
-      _currentIndex = 2; // Go to Agent Trace screen
+      _currentIndex = 3; // Go DIRECTLY to Map — user sees their crisis location
     });
   }
 

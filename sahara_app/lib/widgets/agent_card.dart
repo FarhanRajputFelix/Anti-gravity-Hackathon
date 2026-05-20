@@ -58,7 +58,7 @@ class AgentCard extends StatelessWidget {
                 shape: BoxShape.circle,
                 boxShadow: [
                   BoxShadow(
-                    color: agentColor.withValues(alpha: 0.35),
+                    color: agentColor.withOpacity(0.35),
                     blurRadius: 8,
                   ),
                 ],
@@ -90,7 +90,7 @@ class AgentCard extends StatelessWidget {
                 borderRadius: AppTheme.radiusMd,
                 border: Border.all(
                   color: isFallback
-                      ? AppTheme.alertOrange.withValues(alpha: 0.3)
+                      ? AppTheme.alertOrange.withOpacity(0.3)
                       : AppTheme.navyBorder,
                 ),
               ),
@@ -131,10 +131,10 @@ class AgentCard extends StatelessWidget {
                   margin: const EdgeInsets.only(right: 6),
                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   decoration: BoxDecoration(
-                    color: AppTheme.alertOrange.withValues(alpha: 0.15),
+                    color: AppTheme.alertOrange.withOpacity(0.15),
                     borderRadius: BorderRadius.circular(4),
                     border: Border.all(
-                      color: AppTheme.alertOrange.withValues(alpha: 0.3),
+                      color: AppTheme.alertOrange.withOpacity(0.3),
                     ),
                   ),
                   child: Text(
@@ -192,9 +192,9 @@ class AgentCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
+        color: color.withOpacity(0.1),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withValues(alpha: 0.3)),
+        border: Border.all(color: color.withOpacity(0.3)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -309,9 +309,9 @@ class AgentCard extends StatelessWidget {
             margin: const EdgeInsets.only(bottom: 6),
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
             decoration: BoxDecoration(
-              color: AppTheme.cyanAccent.withValues(alpha: 0.06),
+              color: AppTheme.cyanAccent.withOpacity(0.06),
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: AppTheme.cyanAccent.withValues(alpha: 0.15)),
+              border: Border.all(color: AppTheme.cyanAccent.withOpacity(0.15)),
             ),
             child: Row(
               children: [

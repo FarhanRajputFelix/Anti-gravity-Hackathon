@@ -1,80 +1,241 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SAHARA AI - Command Center</title>
-    <link rel="stylesheet" href="dashboard.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SAHARA AI — Crisis Intelligence Command Center</title>
+  <link rel="stylesheet" href="dashboard.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
 </head>
 <body>
-    <!-- HEADER -->
-    <header class="header">
-        <div class="header-left">
-            <div class="logo-icon">&#9632;</div>
-            <div>
-                <h1 class="logo-text">SAHARA AI</h1>
-                <p class="tagline">Antigravity Command Center</p>
-            </div>
+
+<!-- ═══════════════════════ HEADER ═══════════════════════ -->
+<header class="header">
+  <div class="header-left">
+    <div class="logo-icon">■</div>
+    <div>
+      <h1 class="logo-text">SAHARA AI</h1>
+      <p class="tagline">Crisis Intelligence &amp; Response Orchestrator · Challenge 3: CIRO</p>
+    </div>
+  </div>
+  <div class="header-center">
+    <div class="live-ticker" id="liveTicker">
+      <span class="ticker-label">LIVE</span>
+      <div class="ticker-items" id="tickerItems"></div>
+    </div>
+  </div>
+  <div class="header-right">
+    <span class="hbadge" id="adkStatus">⬡ ADK: CHECKING</span>
+    <span class="hbadge" id="geminiStatus">⬡ GEMINI: CHECKING</span>
+    <span class="hbadge hbadge-online" id="systemStatus">● ONLINE</span>
+    <span class="hbadge hbadge-count" id="crisisCount">0 CRISES</span>
+  </div>
+</header>
+
+<main class="grid3">
+
+  <!-- ═══════════════════════ LEFT: INPUT ═══════════════════════ -->
+  <section class="panel panel-input">
+    <div class="panel-hdr">
+      <h2 class="panel-title">Multi-Source Signal Input</h2>
+      <span class="panel-subtitle">Ingest from multiple sources simultaneously</span>
+    </div>
+
+    <!-- Primary signal -->
+    <div class="signal-source">
+      <div class="source-label">
+        <span class="source-dot dot-social"></span>
+        <span>Social Media / Citizen Report</span>
+        <span class="source-required">PRIMARY</span>
+      </div>
+      <textarea id="sigPrimary" rows="3" placeholder="G-10 mein pani bhar gaya hai, gaariyan phans gayi hain..."></textarea>
+      <select id="srcPrimary">
+        <option value="citizen_report">citizen_report</option>
+        <option value="social_media">social_media</option>
+        <option value="news_agency">news_agency</option>
+      </select>
+    </div>
+
+    <!-- Secondary: weather -->
+    <div class="signal-source">
+      <div class="source-label">
+        <span class="source-dot dot-weather"></span>
+        <span>Weather API Signal</span>
+        <span class="source-opt">+CORROBORATE</span>
+      </div>
+      <textarea id="sigWeather" rows="2" placeholder="PMD issues heavy rainfall alert for Islamabad — 87mm/3h recorded..."></textarea>
+    </div>
+
+    <!-- Secondary: traffic -->
+    <div class="signal-source">
+      <div class="source-label">
+        <span class="source-dot dot-traffic"></span>
+        <span>Traffic API Signal</span>
+        <span class="source-opt">+CORROBORATE</span>
+      </div>
+      <textarea id="sigTraffic" rows="2" placeholder="NHA reports Srinagar Highway at 87/100 congestion — 14 incidents..."></textarea>
+    </div>
+
+    <input id="locationHint" type="text" placeholder="Location hint  (e.g. G-10, Islamabad)" />
+
+    <div class="btn-row">
+      <button id="analyzeBtn" class="btn btn-primary" onclick="runAnalysis()">
+        <span id="analyzeBtnText">⚡ Analyze Signal</span>
+      </button>
+      <button class="btn btn-ghost" onclick="runMultiSource()">⊕ Multi-Source</button>
+    </div>
+
+    <div class="scenario-header">Quick Demo Scenarios</div>
+    <div class="scenarios">
+      <button class="btn-scenario" onclick="loadScenario('flood')">
+        <span class="sc-icon">🌊</span><span>Islamabad Flood</span>
+      </button>
+      <button class="btn-scenario" onclick="loadScenario('heat')">
+        <span class="sc-icon">🌡</span><span>Karachi Heatwave</span>
+      </button>
+      <button class="btn-scenario" onclick="loadScenario('accident')">
+        <span class="sc-icon">🚗</span><span>Lahore Accident</span>
+      </button>
+      <button class="btn-scenario" onclick="loadScenario('fire')">
+        <span class="sc-icon">🔥</span><span>Factory Fire</span>
+      </button>
+    </div>
+
+    <!-- Live signal feed from real Pakistani news + weather -->
+    <div id="liveFeedPanel" class="hidden" style="margin-top:1.5rem">
+      <div class="panel-hdr">
+        <h2 class="panel-title">Live Crisis Feed</h2>
+        <span class="panel-subtitle" style="font-size:10px;color:var(--green)">▶ Real Pakistani news + weather</span>
+      </div>
+      <div id="liveFeedList" class="feed-list">
+        <p class="muted-text">Fetching live signals…</p>
+      </div>
+    </div>
+
+    <!-- Recent logs -->
+    <div class="panel-hdr" style="margin-top:1.5rem">
+      <h2 class="panel-title">Recent Analyses</h2>
+    </div>
+    <div id="logsContainer" class="logs-list">
+      <p class="muted-text">No analyses yet — run a scenario above.</p>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════ CENTER: LIVE PIPELINE ═══════════════════════ -->
+  <section class="panel panel-pipeline">
+    <div class="panel-hdr">
+      <h2 class="panel-title">Live Agent Pipeline</h2>
+      <div class="pipeline-meta">
+        <span id="pipelineCrisisId" class="mono-sm">Awaiting signal...</span>
+        <span id="pipelineTimer" class="timer-badge">0ms</span>
+      </div>
+    </div>
+
+    <div id="pipelineSteps" class="pipeline-steps">
+      <!-- Steps injected by JS -->
+    </div>
+
+    <!-- Orchestration workflow graph -->
+    <div class="panel-hdr" style="margin-top:1.5rem">
+      <h2 class="panel-title">Orchestration Workflow</h2>
+    </div>
+    <div id="workflowGraph" class="workflow-graph">
+      <p class="muted-text">Workflow graph will appear after analysis.</p>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════ RIGHT: RESULTS ═══════════════════════ -->
+  <section class="panel panel-results">
+    <div class="panel-hdr">
+      <h2 class="panel-title">Situation &amp; Outcome</h2>
+    </div>
+
+    <!-- Crisis card -->
+    <div id="crisisCard" class="crisis-card hidden">
+      <div class="cc-header">
+        <div>
+          <div class="cc-type" id="ccType">–</div>
+          <div class="cc-location" id="ccLocation">–</div>
         </div>
-        <div class="header-right">
-            <span class="badge badge-gemini" id="geminiStatus">GEMINI: CHECKING...</span>
-            <span class="badge badge-online" id="systemStatus">SYSTEM: ONLINE</span>
+        <div class="cc-badges">
+          <span class="sev-badge" id="ccSeverity">–</span>
+          <span class="ver-badge" id="ccVerification">–</span>
         </div>
-    </header>
+      </div>
+      <div class="cc-metrics">
+        <div class="metric-box"><span class="mval" id="mConf">–</span><span class="mlbl">Confidence</span></div>
+        <div class="metric-box"><span class="mval" id="mAgents">–</span><span class="mlbl">Agents</span></div>
+        <div class="metric-box"><span class="mval" id="mActions">–</span><span class="mlbl">Actions</span></div>
+        <div class="metric-box"><span class="mval" id="mTime">–</span><span class="mlbl">ms</span></div>
+      </div>
+    </div>
 
-    <main class="main">
-        <!-- LEFT PANEL: Pipeline + Workflow -->
-        <section class="panel panel-pipeline">
-            <h2 class="panel-title">Agent Pipeline</h2>
-            <div id="pipelineContainer" class="pipeline"></div>
-        </section>
+    <!-- Before / After comparison -->
+    <div id="beforeAfterPanel" class="ba-panel hidden">
+      <div class="ba-title">Before → After Simulation</div>
+      <div class="ba-row">
+        <div class="ba-col ba-before">
+          <div class="ba-label">BEFORE RESPONSE</div>
+          <div class="ba-main" id="baCongBefore">–/100</div>
+          <div class="ba-sub">congestion index</div>
+          <div class="ba-stat">Responders: <b>0</b></div>
+          <div class="ba-stat">Alerts sent: <b>0</b></div>
+        </div>
+        <div class="ba-arrow">→</div>
+        <div class="ba-col ba-after">
+          <div class="ba-label">AFTER RESPONSE</div>
+          <div class="ba-main" id="baCongAfter">–/100</div>
+          <div class="ba-sub">congestion index</div>
+          <div class="ba-stat">Responders: <b id="baUnits">–</b></div>
+          <div class="ba-stat">Alerts sent: <b id="baAlerts">–</b></div>
+        </div>
+      </div>
+      <div class="ba-improvement">
+        <span id="baImprovement">–</span>
+        <span class="ba-helped">👥 <b id="baHelped">–</b> citizens helped</span>
+        <span class="ba-response">⏱ <b id="baResponse">–</b> min response</span>
+      </div>
+      <!-- Visual congestion bar -->
+      <div class="bar-compare">
+        <div class="bar-row">
+          <span class="bar-lbl">Before</span>
+          <div class="bar-track"><div class="bar-fill bar-fill-before" id="barBefore"></div></div>
+          <span class="bar-val" id="barBeforeVal">–</span>
+        </div>
+        <div class="bar-row">
+          <span class="bar-lbl">After</span>
+          <div class="bar-track"><div class="bar-fill bar-fill-after" id="barAfter"></div></div>
+          <span class="bar-val" id="barAfterVal">–</span>
+        </div>
+      </div>
+    </div>
 
-        <!-- CENTER PANEL: Live Analysis -->
-        <section class="panel panel-center">
-            <h2 class="panel-title">Quick Analysis</h2>
-            <div class="input-group">
-                <textarea id="crisisInput" placeholder="Enter crisis signal (Urdu / English)... e.g. G-10 mein pani bhar gaya hai" rows="3"></textarea>
-                <button id="analyzeBtn" class="btn btn-primary" onclick="runAnalysis()">Analyze Signal</button>
-            </div>
-            <div class="scenarios">
-                <button class="btn btn-ghost" onclick="loadScenario('islamabad')">Islamabad Flood</button>
-                <button class="btn btn-ghost" onclick="loadScenario('karachi')">Karachi Heatwave</button>
-                <button class="btn btn-ghost" onclick="loadScenario('lahore')">Lahore Accident</button>
-            </div>
+    <!-- Action plan -->
+    <div id="actionPlanPanel" class="action-plan hidden">
+      <div class="panel-hdr"><h2 class="panel-title">Response Action Plan</h2></div>
+      <div id="actionList" class="action-list"></div>
+    </div>
 
-            <div id="resultPanel" class="result-panel hidden">
-                <div class="result-header">
-                    <h3 id="resultTitle">--</h3>
-                    <span class="badge" id="resultSeverity">--</span>
-                </div>
-                <div class="metrics-row">
-                    <div class="metric"><span class="metric-val" id="mConfidence">--</span><span class="metric-label">Confidence</span></div>
-                    <div class="metric"><span class="metric-val" id="mAgents">--</span><span class="metric-label">Agents</span></div>
-                    <div class="metric"><span class="metric-val" id="mActions">--</span><span class="metric-label">Actions</span></div>
-                    <div class="metric"><span class="metric-val" id="mTime">--</span><span class="metric-label">Time (ms)</span></div>
-                </div>
-                <div id="workflowGraph" class="workflow-graph"></div>
-            </div>
-        </section>
+    <!-- Execution logs -->
+    <div id="execLogsPanel" class="exec-logs hidden">
+      <div class="panel-hdr"><h2 class="panel-title">Execution Log</h2></div>
+      <div id="execLogList" class="exec-log-list"></div>
+    </div>
 
-        <!-- RIGHT PANEL: Agent Traces + Logs -->
-        <section class="panel panel-logs">
-            <h2 class="panel-title">Agent Reasoning Logs</h2>
-            <div id="traceContainer" class="trace-container">
-                <p class="muted">Run an analysis to see agent traces...</p>
-            </div>
-            <h2 class="panel-title" style="margin-top:1.5rem;">Recent Analyses</h2>
-            <div id="logsContainer" class="logs-container">
-                <p class="muted">No analyses yet.</p>
-            </div>
-        </section>
-    </main>
+    <!-- Emergency tickets -->
+    <div id="ticketsPanel" class="tickets-panel hidden">
+      <div class="panel-hdr"><h2 class="panel-title">Emergency Tickets</h2></div>
+      <div id="ticketList" class="ticket-list"></div>
+    </div>
+  </section>
 
-    <footer class="footer">
-        <span>SAHARA AI v2.0 &mdash; Google Antigravity Hackathon 2026 &mdash; Challenge 3: CIRO</span>
-    </footer>
+</main>
 
-    <script src="dashboard.js"></script>
+<footer class="footer">
+  <span>SAHARA AI v2.0 · Google Antigravity Orchestration · Hackathon Challenge 3: CIRO · Pakistan Crisis Response System</span>
+  <span><a href="/docs" target="_blank">API Docs</a> · <a href="/redoc" target="_blank">ReDoc</a></span>
+</footer>
+
+<script src="dashboard.js"></script>
 </body>
 </html>

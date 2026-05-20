@@ -69,6 +69,23 @@ ACTION_TEMPLATES: dict = {
          "desc": "Push traffic alert to Waze/Google Maps API partners. Update digital road signs.",
          "impact": "Dynamic rerouting for ~{pop} vehicles in 5km radius within 3 minutes."},
     ],
+    CrisisType.FIRE: [
+        {"priority": 1, "dept": "Fire Brigade / Rescue 1122",
+         "desc": "Deploy fire engines and rescue teams to {location}. Evacuate all occupants immediately.",
+         "impact": "Fire containment within 30 minutes. All civilians evacuated from {pop}-person impact zone."},
+        {"priority": 2, "dept": "Traffic Police",
+         "desc": "Establish 500m cordon around {location}. Divert traffic from {roads}.",
+         "impact": "Emergency vehicle access lanes cleared. Prevents civilian casualties from explosion risk."},
+        {"priority": 3, "dept": "WAPDA / LESCO / KESC",
+         "desc": "Emergency power shutdown for {location} grid zone. Prevent electrical re-ignition.",
+         "impact": "Eliminates electrical fire hazard. Protects first responders from electrocution risk."},
+        {"priority": 4, "dept": "PEMRA / PTA",
+         "desc": "Issue emergency evacuation alert to all subscribers within 1km of {location}.",
+         "impact": "~{pop} residents warned to evacuate within 2 minutes. Reduces civilian casualties."},
+        {"priority": 5, "dept": "Burns Centre / DHQ Hospital",
+         "desc": "Activate major incident protocol. Reserve 20 burns beds. Pre-position trauma teams.",
+         "impact": "Hospital surge capacity ready for fire-related injuries. Reduces fatality risk."},
+    ],
 }
 
 DEFAULT_ACTIONS = [
