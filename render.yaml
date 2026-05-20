@@ -1,0 +1,49 @@
+# Render Blueprint — one-click deploy for SAHARA AI
+# After signing up at https://render.com, go to:
+#   Dashboard -> New + -> Blueprint -> connect this repo
+# Render will auto-detect this file and create the service.
+# Then fill in the env-var values listed below in the Render UI.
+
+services:
+  - type: web
+    name: sahara-ai
+    runtime: python
+    region: singapore           # closest to Pakistan
+    plan: free
+    branch: main
+    rootDir: sahara_backend
+    buildCommand: pip install --upgrade pip && pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /healthz
+    autoDeploy: true            # auto-deploy on every push to main
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12"
+      # ─── REQUIRED ─── paste these values in the Render UI, do NOT commit them
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: WEATHERAPI_KEY
+        sync: false
+      - key: GEOAPIFY_API_KEY
+        sync: false
+      # ─── Twilio (for WhatsApp helpline) ───
+      - key: TWILIO_ACCOUNT_SID
+        sync: false
+      - key: TWILIO_AUTH_TOKEN
+        sync: false
+      - key: TWILIO_WHATSAPP_FROM
+        value: "+14155238886"
+      - key: WHATSAPP_NUMBER
+        sync: false
+      # ─── Firebase Realtime DB persistence ───
+      - key: FIREBASE_ENABLED
+        value: "true"
+      - key: FIREBASE_DB_URL
+        sync: false             # e.g. https://sahara-ai-default-rtdb.firebaseio.com
+      - key: FIREBASE_CREDENTIALS_JSON
+        sync: false             # paste the full service-account JSON as a single line
+      # ─── Email helpline (optional) ───
+      - key: SAHARA_EMAIL
+        sync: false
+      - key: SAHARA_EMAIL_PASSWORD
+        sync: false

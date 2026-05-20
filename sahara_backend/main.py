@@ -17,9 +17,40 @@ from routers.workflow import router as workflow_router
 from routers.whatsapp import router as whatsapp_router
 
 
+async def _rehydrate_from_firebase():
+    """On boot, pull existing crises + WhatsApp reports from Firebase into memory."""
+    try:
+        from firebase_client import firebase
+        from orchestrator import CRISIS_STORE
+        from routers.whatsapp import WHATSAPP_REPORTS
+
+        if not firebase.is_connected:
+            return
+
+        stored = firebase.get_all_crises() or {}
+        for cid, c in stored.items():
+            if cid and isinstance(c, dict):
+                CRISIS_STORE[cid] = c
+        if stored:
+            print(f"[SAHARA] Rehydrated {len(stored)} crises from Firebase")
+
+        wa = firebase.get_whatsapp_reports(limit=50) or []
+        for r in wa:
+            if isinstance(r, dict):
+                WHATSAPP_REPORTS.append(r)
+        if wa:
+            print(f"[SAHARA] Rehydrated {len(wa)} WhatsApp reports from Firebase")
+    except Exception as e:
+        print(f"[SAHARA] Firebase rehydrate failed: {e}")
+
+
 async def _startup_seed():
     """Run an immediate first scan AND seed 4 demo crises so the map is never empty."""
     await asyncio.sleep(2)
+
+    # First, try to rehydrate from Firebase
+    await _rehydrate_from_firebase()
+
     try:
         from services.monitor_service import run_scan
         await run_scan()
@@ -174,4 +205,18 @@ async def root():
 
 @app.get("/health", tags=["Health"])
 async def health():
-    return {"status": "healthy", "service": "SAHARA AI Backend v2.0"}
+    from firebase_client import firebase
+    from orchestrator import CRISIS_STORE
+    return {
+        "status":            "healthy",
+        "service":           "SAHARA AI Backend v2.0",
+        "firebase_connected": firebase.is_connected,
+        "crises_in_memory":  len(CRISIS_STORE),
+        "version":           "2.1.0",
+    }
+
+
+@app.get("/healthz", include_in_schema=False)
+async def healthz():
+    """Lightweight ping for Render/uptime monitors."""
+    return {"ok": True}

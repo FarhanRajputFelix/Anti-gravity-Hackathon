@@ -255,6 +255,13 @@ async def whatsapp_incoming(
     })
     del WHATSAPP_REPORTS[50:]
 
+    # Persist to Firebase
+    try:
+        from firebase_client import firebase
+        firebase.save_whatsapp_report(WHATSAPP_REPORTS[0])
+    except Exception:
+        pass
+
     print(f"[WHATSAPP HELPLINE] Stored pending message {msg_id} from {sender} ({name})")
 
     # Acknowledge to user — they'll get full reply after admin runs analysis
