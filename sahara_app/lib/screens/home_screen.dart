@@ -343,33 +343,96 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     String alertLabel = _totalAlertsSent >= 1000
         ? '${(_totalAlertsSent / 1000).toStringAsFixed(1)}K'
         : _totalAlertsSent.toString();
+    final criticalCount = _displayCrises.where((c) => c['severity'] == 'CRITICAL').length;
     final metrics = [
-      {'label': 'Active Crises', 'value': _displayCrises.length.toString(), 'icon': Icons.crisis_alert, 'color': AppTheme.alertRed},
-      {'label': 'Agents Active', 'value': '6', 'icon': Icons.hub_outlined, 'color': AppTheme.electricBlue},
-      {'label': 'Alerts Sent', 'value': alertLabel, 'icon': Icons.notifications_active, 'color': AppTheme.alertOrange},
+      {'label': 'Active', 'sub': 'crises', 'value': _displayCrises.length.toString(),
+       'icon': Icons.crisis_alert, 'color': AppTheme.alertRed,
+       'trend': criticalCount > 0 ? '+$criticalCount CRIT' : 'stable'},
+      {'label': 'Agents', 'sub': 'online', 'value': '6',
+       'icon': Icons.hub_outlined, 'color': AppTheme.electricBlue,
+       'trend': 'Gemini AI'},
+      {'label': 'Alerts', 'sub': 'dispatched', 'value': alertLabel,
+       'icon': Icons.notifications_active, 'color': AppTheme.alertOrange,
+       'trend': 'last 24h'},
     ];
     return Row(
       children: metrics.asMap().entries.map((e) {
         final m = e.value;
+        final color = m['color'] as Color;
         return Expanded(
           child: FadeInUp(
             delay: Duration(milliseconds: 100 * e.key),
-            child: Container(
-              margin: EdgeInsets.only(right: e.key < 2 ? 10 : 0),
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                gradient: AppTheme.cardGradient,
-                borderRadius: AppTheme.radiusMd,
-                border: Border.all(color: AppTheme.navyBorder),
-              ),
-              child: Column(
-                children: [
-                  Icon(m['icon'] as IconData, color: m['color'] as Color, size: 22),
-                  const SizedBox(height: 8),
-                  Text(m['value'] as String, style: TextStyle(color: AppTheme.textPrimary, fontSize: 20, fontWeight: FontWeight.w700)),
-                  Text(m['label'] as String, style: TextStyle(color: AppTheme.textMuted, fontSize: 10), textAlign: TextAlign.center),
-                ],
-              ),
+            child: AnimatedBuilder(
+              animation: _pulseController,
+              builder: (_, __) {
+                final pulse = _pulseController.value;
+                return Container(
+                  margin: EdgeInsets.only(right: e.key < 2 ? 10 : 0),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft, end: Alignment.bottomRight,
+                      colors: [
+                        AppTheme.deepNavy,
+                        color.withOpacity(0.08),
+                        AppTheme.navyCard,
+                      ],
+                    ),
+                    borderRadius: AppTheme.radiusLg,
+                    border: Border.all(color: color.withOpacity(0.25)),
+                    boxShadow: [BoxShadow(color: color.withOpacity(0.08 + pulse * 0.04), blurRadius: 12)],
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(5),
+                            decoration: BoxDecoration(
+                              gradient: RadialGradient(colors: [color.withOpacity(0.4), color.withOpacity(0.15)]),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Icon(m['icon'] as IconData, color: color, size: 14),
+                          ),
+                          const Spacer(),
+                          Container(
+                            width: 5, height: 5,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: color,
+                              boxShadow: [BoxShadow(color: color.withOpacity(pulse), blurRadius: 6)],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Text(m['value'] as String,
+                          style: TextStyle(color: AppTheme.textPrimary, fontSize: 22, fontWeight: FontWeight.w800, height: 1)),
+                      const SizedBox(height: 2),
+                      Row(
+                        children: [
+                          Text(m['label'] as String,
+                              style: TextStyle(color: AppTheme.textPrimary, fontSize: 10, fontWeight: FontWeight.w700, letterSpacing: 0.5)),
+                          const SizedBox(width: 3),
+                          Text(m['sub'] as String,
+                              style: TextStyle(color: AppTheme.textMuted, fontSize: 10)),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                        decoration: BoxDecoration(
+                          color: color.withOpacity(0.12),
+                          borderRadius: BorderRadius.circular(3),
+                        ),
+                        child: Text(m['trend'] as String,
+                            style: TextStyle(color: color, fontSize: 8, fontWeight: FontWeight.w700, letterSpacing: 0.3)),
+                      ),
+                    ],
+                  ),
+                );
+              },
             ),
           ),
         );

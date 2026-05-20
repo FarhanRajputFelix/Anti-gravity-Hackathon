@@ -18,6 +18,7 @@ class _CrisisInputScreenState extends State<CrisisInputScreen> with TickerProvid
   String _selectedSource = 'citizen_report';
   bool _isAnalyzing = false;
   String? _errorMessage;
+  Map<String, dynamic>? _rejectionInfo;
   late AnimationController _loadingController;
   Timer? _refreshTimer;
 
@@ -95,6 +96,23 @@ class _CrisisInputScreenState extends State<CrisisInputScreen> with TickerProvid
           }
         },
       );
+      // ─── Check if Agent 1 rejected the input ─────────────────────
+      // Backend returns status="REJECTED_INVALID_INPUT" when Signal Ingestion
+      // can't extract any crisis type OR city. In that case, stay on this screen,
+      // show a clear rejection banner, and do NOT navigate to the Map.
+      final status = (result['status'] as String? ?? '').toUpperCase();
+      final verification = (result['verification_status'] as String? ?? '').toUpperCase();
+      if (status == 'REJECTED_INVALID_INPUT' || verification == 'REJECTED') {
+        if (mounted) {
+          setState(() {
+            _rejectionInfo = result;
+            _errorMessage = null;
+          });
+        }
+        return;   // do NOT navigate — keep user on Input screen
+      }
+      // Clear any previous rejection and navigate forward
+      if (mounted) setState(() => _rejectionInfo = null);
       widget.onAnalysisComplete(result);
     } catch (e) {
       setState(() => _errorMessage = 'Analysis failed: ${e.toString().replaceAll('Exception: ', '')}');
@@ -142,6 +160,7 @@ class _CrisisInputScreenState extends State<CrisisInputScreen> with TickerProvid
                   FadeInUp(delay: const Duration(milliseconds: 100), child: _buildManualInput()),
                   const SizedBox(height: 24),
                   if (_errorMessage != null) FadeIn(child: _buildError()),
+                  if (_rejectionInfo != null) FadeIn(child: _buildRejectionBanner()),
                   FadeInUp(delay: const Duration(milliseconds: 200), child: _buildEarthquakeSection()),
                   const SizedBox(height: 22),
                   FadeInUp(delay: const Duration(milliseconds: 300), child: _buildLiveNewsSection()),
@@ -373,6 +392,139 @@ class _CrisisInputScreenState extends State<CrisisInputScreen> with TickerProvid
           ],
         ),
       ],
+    );
+  }
+
+  Widget _buildRejectionBanner() {
+    final r = _rejectionInfo!;
+    final msg = r['system_message'] as String? ?? 'Input could not be classified.';
+    final elapsed = r['total_execution_time_ms'] as int? ?? 0;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft, end: Alignment.bottomRight,
+          colors: [
+            AppTheme.alertOrange.withOpacity(0.18),
+            AppTheme.alertRed.withOpacity(0.12),
+            AppTheme.deepNavy,
+          ],
+        ),
+        borderRadius: AppTheme.radiusLg,
+        border: Border.all(color: AppTheme.alertOrange.withOpacity(0.5), width: 1.5),
+        boxShadow: [BoxShadow(color: AppTheme.alertOrange.withOpacity(0.25), blurRadius: 16)],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(colors: [AppTheme.alertOrange, AppTheme.alertRed]),
+                  borderRadius: BorderRadius.circular(8),
+                  boxShadow: [BoxShadow(color: AppTheme.alertOrange.withOpacity(0.5), blurRadius: 10)],
+                ),
+                child: const Icon(Icons.block, color: Colors.white, size: 18),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Text('AGENT 1 — FALLBACK TRIGGERED',
+                            style: TextStyle(color: AppTheme.alertOrange, fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 1.2)),
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                          decoration: BoxDecoration(
+                            color: AppTheme.alertRed,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: const Text('REJECTED',
+                              style: TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.w800, letterSpacing: 0.5)),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 2),
+                    Text('Signal Ingestion Agent halted the pipeline',
+                        style: TextStyle(color: AppTheme.textSecondary, fontSize: 11)),
+                  ],
+                ),
+              ),
+              GestureDetector(
+                onTap: () => setState(() => _rejectionInfo = null),
+                child: const Icon(Icons.close, color: AppTheme.textMuted, size: 18),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: AppTheme.navyCard.withOpacity(0.6),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: AppTheme.alertOrange.withOpacity(0.2)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Why the input was rejected:',
+                    style: TextStyle(color: AppTheme.alertOrange, fontSize: 11, fontWeight: FontWeight.w700)),
+                const SizedBox(height: 6),
+                Text(msg, style: TextStyle(color: AppTheme.textPrimary, fontSize: 12, height: 1.4)),
+              ],
+            ),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Icon(Icons.timer_outlined, color: AppTheme.textMuted, size: 12),
+              const SizedBox(width: 4),
+              Text('${elapsed}ms · 1/6 agents · 5/6 skipped',
+                  style: TextStyle(color: AppTheme.textMuted, fontSize: 10)),
+              const Spacer(),
+              Text('Agents 2-6: not invoked',
+                  style: TextStyle(color: AppTheme.successGreen, fontSize: 10, fontWeight: FontWeight.w600)),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: AppTheme.electricBlue.withOpacity(0.08),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: AppTheme.electricBlue.withOpacity(0.25)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.tips_and_updates_outlined, color: AppTheme.electricBlue, size: 16),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('How to fix this report:',
+                          style: TextStyle(color: AppTheme.electricBlue, fontSize: 11, fontWeight: FontWeight.w700)),
+                      const SizedBox(height: 3),
+                      Text(
+                        '• Mention what is happening (flood, fire, accident, heatwave...)\n'
+                        '• Mention a Pakistani city (Karachi, Lahore, Dadu, anywhere)\n'
+                        '• Example: "Fire emergency in Lahore Mall Road"',
+                        style: TextStyle(color: AppTheme.textSecondary, fontSize: 11, height: 1.5),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 

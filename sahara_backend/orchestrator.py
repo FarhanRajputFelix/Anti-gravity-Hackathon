@@ -246,6 +246,63 @@ class AntigravityOrchestrator:
         ))
         print(f"[ANTIGRAVITY] OK Agent 1 complete: {context.entities.crisis_type.value if context.entities else 'UNKNOWN'} in {context.entities.city if context.entities else '?'}")
 
+        # ─── EARLY-REJECTION GATE ─────────────────────────────────────────────
+        # If Signal Ingestion couldn't classify the crisis (UNKNOWN type) AND
+        # no Pakistani city was detected, the input is junk/gibberish. Reject
+        # at Agent 1 — don't waste cycles on agents 2-6.
+        from models import CrisisType
+        if (context.entities
+            and context.entities.crisis_type == CrisisType.UNKNOWN
+            and context.entities.city in ("unknown", "", None)):
+
+            print(f"[ANTIGRAVITY] ⛔ INPUT REJECTED at Agent 1 — no crisis or city detected. Halting pipeline.")
+            if context.agent_traces:
+                context.agent_traces[-1].decision = (
+                    "⛔ INPUT REJECTED: Signal Ingestion could not classify any crisis type or Pakistani city. "
+                    "The input appears to be gibberish, test data, or unrelated content. "
+                    "Pipeline halted at Agent 1 to conserve resources. No further agents invoked."
+                )
+                context.agent_traces[-1].confidence = 0.0
+                context.agent_traces[-1].observations.append(
+                    "⛔ FALLBACK: Rejecting input — no actionable signal extracted."
+                )
+                context.agent_traces[-1].reasoning_steps.append(
+                    "Decision: Halt pipeline. No crisis type matched any of 5 keyword banks "
+                    "(flood, fire, heatwave, accident, infrastructure). No Pakistani city detected "
+                    "by regex patterns OR Gemini AI fallback. Treating as invalid input."
+                )
+
+            total_elapsed = int((time.time() - workflow_start) * 1000)
+            result = AnalysisResult(
+                crisis_id=context.crisis_id,
+                status="REJECTED_INVALID_INPUT",
+                crisis_type="UNKNOWN",
+                location="—",
+                city="—",
+                severity="N/A",
+                verification_status="REJECTED",
+                confidence=0.0,
+                action_plan=[],
+                simulation=None,
+                agent_traces=context.agent_traces,
+                fallback_history=context.fallback_history,
+                total_execution_time_ms=total_elapsed,
+                system_message=(
+                    f"⛔ INPUT REJECTED by Agent 1 (Signal Ingestion) in {total_elapsed}ms. "
+                    f"No crisis type or Pakistani city could be extracted from the signal. "
+                    f"Please provide a clear description of the emergency (e.g. 'Flood in Karachi' or 'Fire at Lahore Mall Road'). "
+                    f"Agents 2-6 not invoked — system conserved resources."
+                ),
+                map_data={},
+                orchestration_workflow=workflow_steps,
+            )
+
+            result_payload = result.model_dump()
+            result_payload["created_at"] = context.created_at
+            result_payload["geoapify_context"] = {}
+            # Do NOT save junk to CRISIS_STORE — keep dashboard clean
+            return result
+
         # Now we know the exact city — fetch real weather for it
         if context.entities and context.entities.city:
             try:
