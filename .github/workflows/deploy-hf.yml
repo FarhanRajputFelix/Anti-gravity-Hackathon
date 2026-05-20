@@ -1,0 +1,86 @@
+name: Deploy backend to Hugging Face Spaces
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'sahara_backend/**'
+      - '.github/workflows/deploy-hf.yml'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Hugging Face Hub CLI
+        run: pip install "huggingface_hub>=0.25"
+
+      - name: Push backend to Hugging Face Space
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          HF_USERNAME: ${{ secrets.HF_USERNAME }}
+          HF_SPACE_NAME: sahara-ai
+        run: |
+          if [ -z "$HF_TOKEN" ] || [ -z "$HF_USERNAME" ]; then
+            echo "::error::Missing HF_TOKEN or HF_USERNAME secret. Add them in repo Settings > Secrets and variables > Actions."
+            exit 1
+          fi
+          python - <<'PY'
+          import os
+          from huggingface_hub import HfApi
+
+          api = HfApi(token=os.environ["HF_TOKEN"])
+          repo_id = f"{os.environ['HF_USERNAME']}/{os.environ['HF_SPACE_NAME']}"
+
+          # Create the Space if it doesn't exist (idempotent)
+          try:
+              api.create_repo(
+                  repo_id=repo_id,
+                  repo_type="space",
+                  space_sdk="docker",
+                  exist_ok=True,
+                  private=False,
+              )
+              print(f"Space ready: {repo_id}")
+          except Exception as e:
+              print(f"create_repo: {e}")
+
+          # Upload the sahara_backend folder
+          api.upload_folder(
+              folder_path="sahara_backend",
+              repo_id=repo_id,
+              repo_type="space",
+              commit_message="Auto-deploy from GitHub Actions",
+              ignore_patterns=["__pycache__/*", "*.pyc", ".env", ".env.*", "Dockerfile"],
+          )
+
+          # Upload Dockerfile.hf as Dockerfile (HF auto-detects Dockerfile in root)
+          api.upload_file(
+              path_or_fileobj="sahara_backend/Dockerfile.hf",
+              path_in_repo="Dockerfile",
+              repo_id=repo_id,
+              repo_type="space",
+              commit_message="Use HF-tuned Dockerfile (port 7860)",
+          )
+          print(f"Deploy complete. Open: https://huggingface.co/spaces/{repo_id}")
+          print(f"API base URL: https://{os.environ['HF_USERNAME']}-{os.environ['HF_SPACE_NAME']}.hf.space")
+          PY
+
+      - name: Print live URL
+        run: |
+          echo "## ✅ Backend deployed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Space:** https://huggingface.co/spaces/${{ secrets.HF_USERNAME }}/sahara-ai" >> $GITHUB_STEP_SUMMARY
+          echo "**API base URL:** https://${{ secrets.HF_USERNAME }}-sahara-ai.hf.space" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Build progress: see the Logs tab on the Space page (3-5 min)." >> $GITHUB_STEP_SUMMARY
