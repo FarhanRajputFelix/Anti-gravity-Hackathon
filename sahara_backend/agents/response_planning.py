@@ -1,15 +1,26 @@
 """
 SAHARA AI — Agent 4: Response Planning Agent
 Generates a prioritized, coordinated emergency response action plan.
+Includes Gemini AI-generated response summary for field coordination.
 """
 
+import os
 import time
 import uuid
+import json
 from datetime import datetime
+from dotenv import load_dotenv
 from models import (
     CrisisContext, AgentTrace, ToolCall,
-    ResponseAction, SeverityLevel, CrisisType
+    ResponseAction, ResponsePlanResult, SeverityLevel, CrisisType
 )
+
+load_dotenv()
+
+try:
+    import google.generativeai as genai
+except ImportError:
+    genai = None
 
 
 ACTION_TEMPLATES: dict = {
@@ -68,6 +79,45 @@ DEFAULT_ACTIONS = [
      "desc": "Deploy assessment teams to verify ground situation at {location}.",
      "impact": "On-ground verification within 20 minutes. Improves decision accuracy."},
 ]
+
+
+def _generate_gemini_response_summary(crisis_type: str, location: str, city: str,
+                                      severity_level: str, affected_population: int,
+                                      weather_summary: str, confidence_score: float) -> dict:
+    """Generate Gemini-enhanced response summary."""
+    if not genai:
+        return {"available": False}
+
+    api_key = os.getenv("GEMINI_API_KEY", "")
+    if not api_key:
+        return {"available": False}
+
+    try:
+        genai.configure(api_key=api_key)
+        _model_name = os.getenv("GEMINI_MODEL", "gemini-flash-latest")
+        model = genai.GenerativeModel(_model_name)
+
+        prompt = f"""You are Pakistan's emergency response coordinator.
+Crisis: {crisis_type} in {location}, {city}
+Severity: {severity_level}
+Affected population: {affected_population}
+Weather: {weather_summary}
+Verification confidence: {confidence_score}
+
+Generate a concise emergency response summary in 3-4 sentences.
+Include: immediate action required, which Pakistani authority
+to contact first, and estimated response time.
+Keep it factual and professional."""
+
+        response = model.generate_content(prompt)
+        summary_text = response.text.strip() if response and response.text else ""
+
+        return {
+            "available": True,
+            "summary": summary_text,
+        }
+    except Exception as e:
+        return {"available": False, "error": str(e)}
 
 
 def build_action(template: dict, location: str, pop: int, roads: list) -> ResponseAction:
@@ -134,6 +184,43 @@ def run(context: CrisisContext) -> CrisisContext:
     observations.append(f"Generated {len(actions)} coordinated response actions for {crisis_type.value} at {location}.")
     reasoning_steps.append(f"Action plan synthesized from {crisis_type.value} response playbook v3.2. Priority ordering: Life Safety → Access Control → Mitigation → Communication → Medical Readiness.")
 
+    # ── STEP 3.5: Gemini Response Summary ────────
+    weather_summary = "Unknown" if not verification else f"{verification.weather_consistent and 'Consistent' or 'Contradictory'} weather"
+    gemini_result = _generate_gemini_response_summary(
+        crisis_type=crisis_type.value,
+        location=location,
+        city=city,
+        severity_level=severity.level.value,
+        affected_population=affected_pop,
+        weather_summary=weather_summary,
+        confidence_score=confidence
+    )
+
+    gemini_summary = ""
+    fallback_used = False
+
+    if gemini_result.get("available"):
+        gemini_summary = gemini_result.get("summary", "")
+        observations.append(f"Gemini AI generated response coordinator summary.")
+        reasoning_steps.append(f"[GEMINI AI] {gemini_summary}")
+        tool_calls.append(ToolCall(
+            tool_name="gemini_response_coordinator",
+            input={"crisis": crisis_type.value, "location": location, "severity": severity.level.value},
+            output={"summary": gemini_summary},
+            latency_ms=450
+        ))
+    else:
+        fallback_used = True
+        gemini_summary = f"Immediate: Activate {actions[0].responsible_department if actions else 'Emergency Management Authority'} response teams. Contact {city.title()} Emergency Authority first. Expected first responders on scene within 8-10 minutes."
+        observations.append(f"Gemini API unavailable — using template-based fallback summary.")
+        reasoning_steps.append(f"Fallback response summary generated from action templates.")
+
+    response_plan = ResponsePlanResult(
+        gemini_summary=gemini_summary,
+        fallback_used=fallback_used
+    )
+    context.response_plan = response_plan
+
     # ── STEP 4: Department coordination ───────────
     departments = list({a.responsible_department for a in actions})
     tool_calls.append(ToolCall(
@@ -157,11 +244,16 @@ def run(context: CrisisContext) -> CrisisContext:
         observations=observations,
         reasoning_steps=reasoning_steps,
         tool_calls=tool_calls,
-        decision=f"Generated {len(actions)}-action coordinated response plan. Departments notified: {len(departments)}. First action priority: {actions[0].responsible_department}.",
+        decision=f"Generated {len(actions)}-action coordinated response plan. Departments notified: {len(departments)}. Coordinator summary: {gemini_summary[:100]}...",
         confidence=round(confidence * 0.92, 3),
-        output={"action_count": len(actions), "departments": departments, "actions": [a.model_dump() for a in actions]},
+        output={
+            "action_count": len(actions),
+            "departments": departments,
+            "actions": [a.model_dump() for a in actions],
+            "gemini_summary": gemini_summary,
+        },
         execution_time_ms=elapsed,
-        fallback_triggered=False,
+        fallback_triggered=fallback_used,
     )
     context.agent_traces.append(trace)
     return context

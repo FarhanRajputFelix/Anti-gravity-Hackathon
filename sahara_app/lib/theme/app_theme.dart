@@ -31,11 +31,16 @@ class AppTheme {
 
   static Color severityColor(String level) {
     switch (level.toUpperCase()) {
-      case 'CRITICAL': return severityCritical;
-      case 'HIGH': return severityHigh;
-      case 'MEDIUM': return severityMedium;
-      case 'LOW': return severityLow;
-      default: return glowBlue;
+      case 'CRITICAL':
+        return severityCritical;
+      case 'HIGH':
+        return severityHigh;
+      case 'MEDIUM':
+        return severityMedium;
+      case 'LOW':
+        return severityLow;
+      default:
+        return glowBlue;
     }
   }
 
@@ -77,25 +82,58 @@ class AppTheme {
         error: alertRed,
       ),
       textTheme: const TextTheme(
-        displayLarge: TextStyle(color: textPrimary, fontSize: 32, fontWeight: FontWeight.bold, fontFamily: 'Roboto'),
-        displayMedium: TextStyle(color: textPrimary, fontSize: 24, fontWeight: FontWeight.bold, fontFamily: 'Roboto'),
-        titleLarge: TextStyle(color: textPrimary, fontSize: 20, fontWeight: FontWeight.w600, fontFamily: 'Roboto'),
-        titleMedium: TextStyle(color: textPrimary, fontSize: 16, fontWeight: FontWeight.w600, fontFamily: 'Roboto'),
-        bodyLarge: TextStyle(color: textPrimary, fontSize: 15, fontFamily: 'Roboto'),
-        bodyMedium: TextStyle(color: textSecondary, fontSize: 13, fontFamily: 'Roboto'),
-        labelSmall: TextStyle(color: textMuted, fontSize: 11, letterSpacing: 0.8, fontFamily: 'Roboto'),
+        displayLarge: TextStyle(
+          color: textPrimary,
+          fontSize: 32,
+          fontWeight: FontWeight.bold,
+          fontFamily: 'Roboto',
+        ),
+        displayMedium: TextStyle(
+          color: textPrimary,
+          fontSize: 24,
+          fontWeight: FontWeight.bold,
+          fontFamily: 'Roboto',
+        ),
+        titleLarge: TextStyle(
+          color: textPrimary,
+          fontSize: 20,
+          fontWeight: FontWeight.w600,
+          fontFamily: 'Roboto',
+        ),
+        titleMedium: TextStyle(
+          color: textPrimary,
+          fontSize: 16,
+          fontWeight: FontWeight.w600,
+          fontFamily: 'Roboto',
+        ),
+        bodyLarge: TextStyle(
+          color: textPrimary,
+          fontSize: 15,
+          fontFamily: 'Roboto',
+        ),
+        bodyMedium: TextStyle(
+          color: textSecondary,
+          fontSize: 13,
+          fontFamily: 'Roboto',
+        ),
+        labelSmall: TextStyle(
+          color: textMuted,
+          fontSize: 11,
+          letterSpacing: 0.8,
+          fontFamily: 'Roboto',
+        ),
       ),
       appBarTheme: const AppBarTheme(
         backgroundColor: deepNavy,
         elevation: 0,
         centerTitle: true,
-        titleTextStyle: const TextStyle(
+        titleTextStyle: TextStyle(
           color: textPrimary,
           fontSize: 18,
           fontWeight: FontWeight.w600,
           fontFamily: 'Roboto',
         ),
-        iconTheme: const IconThemeData(color: textPrimary),
+        iconTheme: IconThemeData(color: textPrimary),
       ),
       bottomNavigationBarTheme: const BottomNavigationBarThemeData(
         backgroundColor: deepNavy,
@@ -108,9 +146,15 @@ class AppTheme {
         style: ElevatedButton.styleFrom(
           backgroundColor: electricBlue,
           foregroundColor: Colors.white,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-          textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, fontFamily: 'Roboto'),
+          textStyle: const TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w600,
+            fontFamily: 'Roboto',
+          ),
         ),
       ),
     );

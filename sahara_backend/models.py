@@ -91,9 +91,11 @@ class VerificationResult(BaseModel):
     status: VerificationStatus = VerificationStatus.UNVERIFIED
     confidence_score: float = 0.5
     weather_consistent: bool = True
-    traffic_consistent: bool = True
     contradictions: List[str] = []
     supporting_evidence: List[str] = []
+    location_lat: Optional[float] = None
+    location_lon: Optional[float] = None
+    location_confidence: Optional[float] = None
 
 
 class SeverityResult(BaseModel):
@@ -112,6 +114,11 @@ class ResponseAction(BaseModel):
     expected_impact: str
     status: str = "PLANNED"
     executed_at: Optional[str] = None
+
+
+class ResponsePlanResult(BaseModel):
+    gemini_summary: Optional[str] = None
+    fallback_used: bool = False
 
 
 class SimulationState(BaseModel):
@@ -141,6 +148,7 @@ class CrisisContext(BaseModel):
     entities: Optional[ExtractedEntities] = None
     verification: Optional[VerificationResult] = None
     severity: Optional[SeverityResult] = None
+    response_plan: Optional[ResponsePlanResult] = None
     action_plan: List[ResponseAction] = []
     simulation: Optional[SimulationState] = None
     agent_traces: List[AgentTrace] = []

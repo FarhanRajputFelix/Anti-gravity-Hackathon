@@ -21,6 +21,8 @@ class AgentMemory {
   // ── Agent 2: Verification ──
   bool isVerified = false;
   double verificationConfidence = 0.0;
+  String verificationStatus = 'PENDING';  // CONFIRMED, UNCERTAIN, CONTRADICTED, UNVERIFIED
+  List<String> contradictions = [];
   Map<String, dynamic> weatherData = {};
   Map<String, dynamic> trafficData = {};
   int corroboratedSources = 0;
@@ -61,16 +63,23 @@ class AgentMemory {
   List<AgentTrace> agentTraces = [];
   int totalExecutionTimeMs = 0;
   double overallConfidence = 0.0;
+  String systemMessage = '';
+  String pipelineStatus = 'PROCESSING';  // PROCESSING, COMPLETED, UNVERIFIED, REJECTED
 
   /// Convert to the JSON format expected by all Flutter screens
   Map<String, dynamic> toResult() {
     return {
+      'crisis_id': 'CRS-${DateTime.now().millisecondsSinceEpoch.toRadixString(16).toUpperCase().substring(0, 8)}',
+      'status': pipelineStatus,
       'crisis_type': crisisType ?? 'UNKNOWN',
       'location': extractedLocation ?? locationHint ?? 'Unknown',
       'severity': severity,
+      'verification_status': verificationStatus,
       'confidence': overallConfidence,
       'total_execution_time_ms': totalExecutionTimeMs,
       'verified': isVerified,
+      'contradictions': contradictions,
+      'system_message': systemMessage,
       'agent_traces': agentTraces.map((t) => t.toJson()).toList(),
       'action_plan': actionPlan,
       'simulation': {

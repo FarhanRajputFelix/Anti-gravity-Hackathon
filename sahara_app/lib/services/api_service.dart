@@ -9,9 +9,9 @@ import 'package:http/http.dart' as http;
 import '../engine/orchestrator.dart';
 
 class ApiService {
-  /// Toggle: true = use in-app Antigravity engine (mock-first demo)
-  ///         false = call live FastAPI backend
-  static bool useMockData = true;
+  /// Toggle: true = use in-app Antigravity engine (offline fallback)
+  ///         false = call live FastAPI backend (RECOMMENDED — has proper gate logic)
+  static bool useMockData = false;
 
   /// The in-app Antigravity orchestrator
   static final AntigravityOrchestrator _orchestrator =

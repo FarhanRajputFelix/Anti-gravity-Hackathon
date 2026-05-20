@@ -6,11 +6,17 @@ Supports English, Urdu, and Roman Urdu.
 
 import time
 import uuid
+import json
+import os
 from datetime import datetime
 from models import (
     CrisisContext, AgentTrace, ToolCall,
     ExtractedEntities, CrisisType
 )
+try:
+    import google.generativeai as genai
+except ImportError:
+    genai = None
 
 
 # ─────────────────────────────────────────
@@ -65,35 +71,107 @@ def detect_language(text: str) -> str:
     return "english"
 
 
-def detect_crisis_type(text: str) -> CrisisType:
+def _gemini_crisis_analysis(text: str) -> dict:
+    """
+    Calls Gemini API to analyze crisis signals.
+    Returns structured crisis analysis or falls back to keyword matching on error.
+    """
+    if not genai:
+        return None
+
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        return None
+
+    try:
+        genai.configure(api_key=api_key)
+        _model_name = os.getenv("GEMINI_MODEL", "gemini-flash-latest")
+        model = genai.GenerativeModel(_model_name)
+
+        prompt = f"""You are a crisis detection AI for Pakistan emergency services.
+Analyze this message and respond ONLY with valid JSON, nothing else.
+
+Message: {text}
+
+If this message describes a real crisis (flood, fire, accident,
+heatwave, infrastructure failure), respond with:
+{{
+  "is_crisis": true,
+  "crisis_type": "FLOODING|HEATWAVE|TRAFFIC_ACCIDENT|INFRASTRUCTURE_FAILURE|FIRE",
+  "city": "islamabad|karachi|lahore|rawalpindi|peshawar|unknown",
+  "location": "extracted location or city name",
+  "severity_hint": "HIGH|MEDIUM|LOW",
+  "confidence": 0.0-1.0,
+  "language": "english|urdu|roman_urdu"
+}}
+
+If the message is gibberish, a greeting, a test, spam, or NOT a
+crisis report, respond with:
+{{
+  "is_crisis": false,
+  "confidence": 0.0-1.0,
+  "reason": "brief reason"
+}}"""
+
+        response = model.generate_content(prompt)
+        response_text = response.text.strip()
+
+        result = json.loads(response_text)
+        return result
+    except Exception as e:
+        return None
+
+
+def _crisis_type_from_string(crisis_type_str: str) -> CrisisType:
+    """Convert string crisis type to CrisisType enum."""
+    mapping = {
+        "FLOODING": CrisisType.FLOODING,
+        "HEATWAVE": CrisisType.HEATWAVE,
+        "TRAFFIC_ACCIDENT": CrisisType.TRAFFIC_ACCIDENT,
+        "INFRASTRUCTURE_FAILURE": CrisisType.INFRASTRUCTURE_FAILURE,
+        "FIRE": CrisisType.INFRASTRUCTURE_FAILURE,
+    }
+    return mapping.get(crisis_type_str, CrisisType.UNKNOWN)
+
+
+def _fallback_crisis_detection(text: str) -> dict:
+    """Fallback keyword-based crisis detection when Gemini API fails."""
     t = text.lower()
+
+    crisis_type = CrisisType.UNKNOWN
     if any(kw in t for kw in FLOOD_KEYWORDS):
-        return CrisisType.FLOODING
-    if any(kw in t for kw in HEATWAVE_KEYWORDS):
-        return CrisisType.HEATWAVE
-    if any(kw in t for kw in ACCIDENT_KEYWORDS):
-        return CrisisType.TRAFFIC_ACCIDENT
-    if any(kw in t for kw in INFRASTRUCTURE_KEYWORDS):
-        return CrisisType.INFRASTRUCTURE_FAILURE
-    return CrisisType.UNKNOWN
+        crisis_type = CrisisType.FLOODING
+    elif any(kw in t for kw in HEATWAVE_KEYWORDS):
+        crisis_type = CrisisType.HEATWAVE
+    elif any(kw in t for kw in ACCIDENT_KEYWORDS):
+        crisis_type = CrisisType.TRAFFIC_ACCIDENT
+    elif any(kw in t for kw in INFRASTRUCTURE_KEYWORDS):
+        crisis_type = CrisisType.INFRASTRUCTURE_FAILURE
 
-
-def detect_city(text: str) -> str:
-    t = text.lower()
-    for city, patterns in CITY_PATTERNS.items():
+    city = "islamabad"
+    for c, patterns in CITY_PATTERNS.items():
         if any(pat in t for pat in patterns):
-            return city
-    # Default based on context hints
-    return "islamabad"
+            city = c
+            break
 
-
-def detect_severity_hint(text: str) -> str:
-    t = text.lower()
+    severity = "MEDIUM"
     if any(w in t for w in ["critical", "zaroorat", "bachao", "madad", "emergency", "severe", "extreme", "zabardast"]):
-        return "HIGH"
-    if any(w in t for w in ["partial", "kuch", "thori", "minor"]):
-        return "LOW"
-    return "MEDIUM"
+        severity = "HIGH"
+    elif any(w in t for w in ["partial", "kuch", "thori", "minor"]):
+        severity = "LOW"
+
+    is_crisis = crisis_type != CrisisType.UNKNOWN
+
+    return {
+        "is_crisis": is_crisis,
+        "crisis_type": crisis_type.value,
+        "city": city,
+        "location": LOCATION_LABELS.get(city, city.title()),
+        "severity_hint": severity,
+        "confidence": 0.75 if is_crisis else 0.3,
+        "language": detect_language(text),
+        "fallback": True,
+    }
 
 
 def check_duplicate(text: str, crisis_id: str) -> list:
@@ -133,39 +211,66 @@ def run(context: CrisisContext) -> CrisisContext:
         latency_ms=120
     ))
 
-    # Step 2: Crisis type detection
-    crisis_type = detect_crisis_type(text)
-    observations.append(f"Scanning for crisis type keywords across {len(FLOOD_KEYWORDS + HEATWAVE_KEYWORDS + ACCIDENT_KEYWORDS)} multilingual patterns.")
-    reasoning_steps.append(f"Matched dominant keyword cluster → Crisis type classified as: {crisis_type.value}.")
+    # Step 2-4: Unified crisis analysis via Gemini API
+    analysis_start = time.time()
+    analysis = _gemini_crisis_analysis(text)
+    fallback_used = False
+
+    if analysis is None:
+        observations.append("Gemini API unavailable or failed. Falling back to keyword matching.")
+        reasoning_steps.append("Gemini API call failed → reverting to legacy keyword-based detection.")
+        analysis = _fallback_crisis_detection(text)
+        fallback_used = True
+
+    gemini_latency = int((time.time() - analysis_start) * 1000)
+
+    crisis_type = _crisis_type_from_string(analysis.get("crisis_type", "UNKNOWN"))
+    city = analysis.get("city", "islamabad")
+    location = analysis.get("location") or signal.location_hint or LOCATION_LABELS.get(city, city.title())
+    severity_hint = analysis.get("severity_hint", "MEDIUM")
+    confidence = analysis.get("confidence", 0.0)
+    is_crisis = analysis.get("is_crisis", False)
+
     tool_calls.append(ToolCall(
-        tool_name="crisis_classifier",
-        input={"text": text[:100], "keyword_banks": ["flood", "heat", "accident", "infra"]},
-        output={"crisis_type": crisis_type.value, "match_confidence": 0.87},
-        latency_ms=200
+        tool_name="gemini_crisis_analyzer" if not fallback_used else "crisis_classifier_fallback",
+        input={"text": text[:200], "model": "gemini-1.5-flash" if not fallback_used else "keyword_matching"},
+        output={
+            "crisis_type": crisis_type.value,
+            "city": city,
+            "severity_hint": severity_hint,
+            "confidence": confidence,
+            "is_crisis": is_crisis,
+        },
+        latency_ms=gemini_latency
     ))
 
-    # Step 3: Location extraction
-    city = detect_city(text)
-    if signal.location_hint:
-        loc_lower = signal.location_hint.lower()
-        for c in CITY_PATTERNS:
-            if any(p in loc_lower for p in CITY_PATTERNS[c]):
-                city = c
-                break
-    location = signal.location_hint or LOCATION_LABELS.get(city, city.title())
-    observations.append(f"Location entity extraction complete. City: {city.title()}, Location: {location}.")
-    reasoning_steps.append(f"Geographic entity matched '{location}' in known Pakistani city pattern database.")
-    tool_calls.append(ToolCall(
-        tool_name="entity_extractor",
-        input={"text": text[:100]},
-        output={"city": city, "location": location},
-        latency_ms=180
-    ))
+    # Rejection logic: if not a crisis or confidence too low
+    if not is_crisis or confidence < 0.55:
+        context.system_status = "REJECTED_NOT_A_CRISIS"
+        rejection_reason = analysis.get("reason", "Low confidence or not a real crisis")
+        observations.append(f"⚠ Signal rejected: {rejection_reason} (confidence: {confidence:.2f})")
+        reasoning_steps.append(f"Crisis authenticity check failed. Rejection reason: {rejection_reason}.")
 
-    # Step 4: Severity hint
-    severity_hint = detect_severity_hint(text)
-    observations.append(f"Severity signaling words found → hint: {severity_hint}.")
-    reasoning_steps.append("Urgency vocabulary analysis complete. Applied severity pre-classification for downstream agents.")
+        elapsed = int((time.time() - start) * 1000)
+        trace = AgentTrace(
+            agent_name="Signal Ingestion Agent",
+            agent_index=1,
+            timestamp=datetime.utcnow().isoformat(),
+            input={"signal": signal.text[:200], "source": signal.source},
+            observations=observations,
+            reasoning_steps=reasoning_steps,
+            tool_calls=tool_calls,
+            decision=f"Signal rejected. Reason: {rejection_reason}. Confidence: {confidence:.2f}",
+            confidence=confidence,
+            output={"rejected": True, "reason": rejection_reason},
+            execution_time_ms=elapsed,
+            fallback_triggered=fallback_used,
+        )
+        context.agent_traces.append(trace)
+        return context
+
+    observations.append(f"Crisis signal validated. Type: {crisis_type.value}, City: {city.title()}, Severity: {severity_hint}, Confidence: {confidence:.2f}")
+    reasoning_steps.append(f"Gemini analysis validated crisis authenticity. Type={crisis_type.value}, Location={location}, Severity={severity_hint}.")
 
     # Step 5: Duplicate detection
     duplicates = check_duplicate(text, context.crisis_id)
@@ -199,10 +304,10 @@ def run(context: CrisisContext) -> CrisisContext:
         reasoning_steps=reasoning_steps,
         tool_calls=tool_calls,
         decision=f"Structured crisis signal extracted. Type={crisis_type.value}, City={city.title()}, Lang={lang}, Severity hint={severity_hint}.",
-        confidence=0.88,
+        confidence=confidence,
         output=entities.model_dump(),
         execution_time_ms=elapsed,
-        fallback_triggered=False,
+        fallback_triggered=fallback_used,
     )
     context.agent_traces.append(trace)
     return context

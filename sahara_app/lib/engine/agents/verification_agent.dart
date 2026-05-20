@@ -335,31 +335,37 @@ class VerificationAgent extends BaseAgent {
     confidence = max(0.10, min(0.95, confidence));
 
     // ── Determine verification status ──
+    // CRITICAL: Any contradictions = CONTRADICTED, regardless of confidence.
+    // This matches the backend Python logic. Weather is ground truth —
+    // if it's sunny with 0mm rain, a flood report is FALSE, period.
+    // Confidence boosting from traffic/correlation CANNOT override weather facts.
     String verificationStatus;
     String decision;
-    if (contradictions.isNotEmpty && confidence < 0.45) {
+    if (contradictions.isNotEmpty) {
       verificationStatus = 'CONTRADICTED';
       decision =
-          'Crisis CONTRADICTED — weather/traffic data conflicts with report. Confidence: ${(confidence * 100).toStringAsFixed(0)}%. ${contradictions.first}';
-      memory.isVerified = false;
-    } else if (contradictions.isNotEmpty && confidence < 0.60) {
-      verificationStatus = 'UNCERTAIN';
-      decision =
-          'Crisis UNCERTAIN — contradictions present but confidence (${(confidence * 100).toStringAsFixed(0)}%) allows cautious proceeding.';
+          'Crisis CONTRADICTED by real-world data. Confidence: ${(confidence * 100).toStringAsFixed(0)}%. ${contradictions.join(" | ")}. Pipeline will HALT — no emergency response initiated.';
       memory.isVerified = false;
     } else if (confidence >= 0.70) {
       verificationStatus = 'CONFIRMED';
       decision =
           'Crisis CONFIRMED — weather + traffic consistent with report. Confidence: ${(confidence * 100).toStringAsFixed(0)}%.';
       memory.isVerified = true;
+    } else if (confidence >= 0.40) {
+      verificationStatus = 'UNCERTAIN';
+      decision =
+          'Crisis UNCERTAIN — no contradictions but insufficient supporting evidence (${(confidence * 100).toStringAsFixed(0)}%). Proceeding with caution.';
+      memory.isVerified = false;
     } else {
       verificationStatus = 'UNVERIFIED';
       decision =
-          'Crisis UNVERIFIED — insufficient evidence (${(confidence * 100).toStringAsFixed(0)}%). Requires additional data.';
+          'Crisis UNVERIFIED — confidence critically low (${(confidence * 100).toStringAsFixed(0)}%). Requires additional data.';
       memory.isVerified = false;
     }
 
     memory.verificationConfidence = confidence;
+    memory.verificationStatus = verificationStatus;
+    memory.contradictions = contradictions;
 
     sw.stop();
     final execTime = sw.elapsedMilliseconds;

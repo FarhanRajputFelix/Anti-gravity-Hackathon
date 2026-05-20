@@ -57,22 +57,61 @@ class AntigravityOrchestrator {
 
     final pipelineSw = Stopwatch()..start();
 
-    // Execute each agent in sequence, passing shared memory
-    for (int i = 0; i < agents.length; i++) {
+    // ── STEP 1: Signal Ingestion Agent ──
+    onProgress?.call(1, agents[0].name, 'Starting...', 0.0);
+    await agents[0].execute(memory, onProgress: (name, status, p) {
+      onProgress?.call(1, name, status, p / agents.length);
+    });
+    onProgress?.call(1, agents[0].name, 'Complete ✓', 1.0 / agents.length);
+
+    // ── GATE 1: Was the signal rejected as not a crisis? ──
+    if (memory.crisisType == null || memory.crisisType == 'UNKNOWN' || memory.signalConfidence < 0.55) {
+      pipelineSw.stop();
+      memory.totalExecutionTimeMs = pipelineSw.elapsedMilliseconds;
+      memory.pipelineStatus = 'REJECTED';
+      memory.systemMessage = 'Signal rejected: Not a valid crisis report. Confidence too low or crisis type unrecognized.';
+      memory.overallConfidence = memory.signalConfidence;
+      onProgress?.call(agents.length, 'Pipeline Halted', 'Gate 1: Signal rejected', 1.0);
+      return memory.toResult();
+    }
+
+    // ── STEP 2: Verification Agent ──
+    onProgress?.call(2, agents[1].name, 'Starting...', 1.0 / agents.length);
+    await agents[1].execute(memory, onProgress: (name, status, p) {
+      onProgress?.call(2, name, status, (1.0 + p) / agents.length);
+    });
+    onProgress?.call(2, agents[1].name, 'Complete ✓', 2.0 / agents.length);
+
+    // ── GATE 2: Was the crisis CONTRADICTED by real-world data? ──
+    if (memory.verificationStatus == 'CONTRADICTED') {
+      pipelineSw.stop();
+      memory.totalExecutionTimeMs = pipelineSw.elapsedMilliseconds;
+      memory.pipelineStatus = 'UNVERIFIED';
+      memory.overallConfidence = memory.verificationConfidence;
+      final contradictionText = memory.contradictions.isNotEmpty
+          ? memory.contradictions.join(' | ')
+          : 'Report contradicts real-world data';
+      memory.systemMessage =
+          'Crisis report REJECTED by verification gate: $contradictionText. '
+          'No emergency response initiated. ${memory.agentTraces.length} agents executed.';
+      onProgress?.call(
+          agents.length, 'Pipeline Halted',
+          '⛔ Gate 2: Verification CONTRADICTED — false report detected', 1.0);
+      return memory.toResult();
+    }
+
+    // ── STEPS 3–6: Remaining agents (only if verification passed) ──
+    for (int i = 2; i < agents.length; i++) {
       final agent = agents[i];
-      final baseProgress = i / agents.length;
+      final baseProgress = (i) / agents.length;
       final progressPerAgent = 1.0 / agents.length;
 
       onProgress?.call(i + 1, agent.name, 'Starting...', baseProgress);
 
-      // Execute agent with progress callback that maps to overall progress
-      await agent.execute(
-        memory,
-        onProgress: (name, status, agentProgress) {
-          final overall = baseProgress + (agentProgress * progressPerAgent);
-          onProgress?.call(i + 1, name, status, overall);
-        },
-      );
+      await agent.execute(memory, onProgress: (name, status, agentProgress) {
+        final overall = baseProgress + (agentProgress * progressPerAgent);
+        onProgress?.call(i + 1, name, status, overall);
+      });
 
       onProgress?.call(
           i + 1, agent.name, 'Complete ✓', baseProgress + progressPerAgent);
@@ -80,6 +119,7 @@ class AntigravityOrchestrator {
 
     pipelineSw.stop();
     memory.totalExecutionTimeMs = pipelineSw.elapsedMilliseconds;
+    memory.pipelineStatus = 'COMPLETED';
 
     // Compute overall pipeline confidence
     if (memory.agentTraces.isNotEmpty) {
@@ -90,6 +130,11 @@ class AntigravityOrchestrator {
       memory.overallConfidence =
           (sum / memory.agentTraces.length) * memory.systemResilience;
     }
+
+    memory.systemMessage =
+        'SAHARA AI processed crisis in ${memory.totalExecutionTimeMs}ms. '
+        '${memory.agentTraces.length} agents executed. '
+        '${memory.actionPlan.length} response actions planned.';
 
     onProgress?.call(
         agents.length, 'Pipeline Complete', 'All agents finished', 1.0);
