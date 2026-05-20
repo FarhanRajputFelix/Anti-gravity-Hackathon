@@ -1,0 +1,28 @@
+# Koyeb deployment spec for SAHARA AI backend
+# Push this repo to GitHub, then on https://app.koyeb.com:
+#   Create App -> GitHub -> select Anti-gravity-Hackathon repo -> branch main
+#   Build settings: Builder = Buildpack, Run command = uvicorn main:app --host 0.0.0.0 --port $PORT
+#   Work directory = sahara_backend
+#   Then paste env vars (listed in PRODUCTION_DEPLOY.md)
+
+name: sahara-ai
+services:
+  - name: web
+    git:
+      branch: main
+      build_command: "pip install -r requirements.txt"
+      run_command: "uvicorn main:app --host 0.0.0.0 --port $PORT"
+      workdir: sahara_backend
+    ports:
+      - port: 8000
+        protocol: http
+    routes:
+      - path: /
+    health_checks:
+      - http:
+          path: /healthz
+          port: 8000
+    instance_types:
+      - type: free
+    regions:
+      - fra        # Frankfurt — best free-tier latency to Pakistan

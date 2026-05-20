@@ -1,113 +1,122 @@
-# SAHARA AI — Production Deployment
+# SAHARA AI — Production Deployment (no credit card needed)
 
-This guide takes you from code → public backend → persistent database → APK pointing to production. **~15 minutes total.**
-
----
-
-## Step 1 · Firebase Realtime Database
-
-You said you already signed up. Now:
-
-1. Go to https://console.firebase.google.com
-2. Click **Add project** → name it `sahara-ai` → continue
-3. In the left sidebar: **Build → Realtime Database**
-4. Click **Create Database** → choose **Singapore** location → start in **Test mode**
-5. Copy your database URL (top of the page) — looks like `https://sahara-ai-default-rtdb.firebaseio.com` → save it as `FIREBASE_DB_URL`
-
-### Get the service account JSON
-1. Click the ⚙️ next to "Project Overview" → **Project settings**
-2. Tab: **Service accounts**
-3. Click **Generate new private key** → confirm → downloads a JSON file
-4. Open the JSON in any editor, **copy the entire content** as one string — save it as `FIREBASE_CREDENTIALS_JSON`
+Total time: ~15 minutes.
 
 ---
 
-## Step 2 · Render.com deploy
+## Step 1 · Firebase Service Account
 
-You said you already signed up. Now:
+You have a Firebase project (sahara-9c923). Now get the **backend** credentials:
 
-1. Go to https://dashboard.render.com
-2. Click **New + → Blueprint**
-3. Connect your GitHub → select `Anti-gravity-Hackathon` repo → click **Apply**
-4. Render reads `render.yaml` and creates the `sahara-ai` service automatically
-5. You'll be prompted for the secret env-vars (marked `sync: false` in the yaml). Paste these values:
+1. Open: https://console.firebase.google.com/project/sahara-9c923/settings/serviceaccounts/adminsdk
+2. Click **Generate new private key** → **Generate key** → downloads `sahara-9c923-firebase-adminsdk-XXXXX.json`
+3. **Enable Realtime Database** (different from Firestore, which is what we want):
+   - Sidebar → **Build → Realtime Database** → **Create Database** → **Singapore** → **Test mode**
+   - Copy the URL at the top (something like `https://sahara-9c923-default-rtdb.firebaseio.com`) — save this as **`FIREBASE_DB_URL`**
 
-| Variable | Value (from your local .env) |
+> The `google-services.json` you already have is for the Android client app (gets embedded in the APK). The service account JSON is the *backend* identity — totally different file.
+
+---
+
+## Step 2 · Koyeb deployment (no credit card)
+
+1. Sign up at https://app.koyeb.com — use GitHub login, **no card needed**
+2. Click **Create App** → **GitHub** → connect → select `Anti-gravity-Hackathon`
+3. Configure:
+   - **Branch:** `main`
+   - **Builder:** `Buildpack`
+   - **Work directory:** `sahara_backend`
+   - **Build command:** `pip install -r requirements.txt`
+   - **Run command:** `uvicorn main:app --host 0.0.0.0 --port $PORT`
+   - **Port:** `8000` (HTTP)
+   - **Health check path:** `/healthz`
+   - **Region:** Frankfurt
+   - **Instance type:** `Free`
+
+4. Click **Environment variables** → paste these (replace placeholders with your real values from `.env`):
+
+| Variable | Value |
 |---|---|
 | `GEMINI_API_KEY` | your Gemini key |
 | `WEATHERAPI_KEY` | your WeatherAPI key |
 | `GEOAPIFY_API_KEY` | your Geoapify key |
 | `TWILIO_ACCOUNT_SID` | your Twilio SID |
 | `TWILIO_AUTH_TOKEN` | your Twilio token |
+| `TWILIO_WHATSAPP_FROM` | `+14155238886` |
 | `WHATSAPP_NUMBER` | `923250909907` |
+| `FIREBASE_ENABLED` | `true` |
 | `FIREBASE_DB_URL` | from Step 1 |
-| `FIREBASE_CREDENTIALS_JSON` | the full service account JSON as one string |
+| `FIREBASE_CREDENTIALS_JSON` | the entire service-account JSON, on one line (or use Koyeb's multi-line input) |
 
-6. Click **Apply** → first deploy takes ~3 minutes
-7. When done, you get a URL like **`https://sahara-ai.onrender.com`**
+5. Click **Deploy** → first build takes 4–6 min → you get a URL like **`https://sahara-ai-<random>.koyeb.app`**
 
 ### Verify it works
-- Open `https://sahara-ai.onrender.com/health` — should show `{"status":"healthy","firebase_connected":true,...}`
-- Open `https://sahara-ai.onrender.com/app/` — the Flutter web app
-- Open `https://sahara-ai.onrender.com/api/live-crises` — auto-seeded crises
+- `https://sahara-ai-<random>.koyeb.app/health` → returns `{"status":"healthy","firebase_connected":true,...}`
+- `https://sahara-ai-<random>.koyeb.app/app/` → the Flutter web app
+- `https://sahara-ai-<random>.koyeb.app/api/live-crises` → auto-seeded crises
 
 ---
 
-## Step 3 · Tell GitHub the production URL (so APK builds use it)
+## Step 3 · Tell GitHub the production URL
 
 1. Go to https://github.com/FarhanRajputFelix/Anti-gravity-Hackathon/settings/secrets/actions
 2. Click **New repository secret**
 3. Name: `SAHARA_API_BASE_URL`
-4. Value: `https://sahara-ai.onrender.com` (whatever Render gave you)
-5. Click **Add secret**
-
-Next time GitHub Actions builds the APK, it will hard-code that URL into the app.
+4. Value: your Koyeb URL (e.g. `https://sahara-ai-<random>.koyeb.app`)
+5. **Add secret**
 
 ---
 
-## Step 4 · Rebuild the APK against production
+## Step 4 · Rebuild APK against production
 
 Either:
-- **Push any commit to main** → Actions auto-rebuilds the APK with the production URL
-- **OR** go to https://github.com/FarhanRajputFelix/Anti-gravity-Hackathon/actions/workflows/build-apk.yml → click **Run workflow**
+- Push any commit → APK auto-rebuilds
+- OR go to https://github.com/FarhanRajputFelix/Anti-gravity-Hackathon/actions/workflows/build-apk.yml → **Run workflow**
 
-When complete (~5 min), the new APK appears on Releases:
-**https://github.com/FarhanRajputFelix/Anti-gravity-Hackathon/releases**
+After ~5 min the new APK appears on:
+**https://github.com/FarhanRajputFelix/Anti-gravity-Hackathon/releases/latest**
 
-Download `app-release.apk` to any Android device — it talks directly to your Render backend.
+This APK talks directly to your Koyeb backend. Works on any Android phone.
 
 ---
 
-## Step 5 · Point Twilio webhook to production
+## Step 5 · Point Twilio to production
 
 1. https://console.twilio.com → **Messaging → Try it out → Send a WhatsApp message → Sandbox settings**
-2. Field "When a message comes in": `https://sahara-ai.onrender.com/api/whatsapp/incoming`
+2. Field "When a message comes in": `https://sahara-ai-<random>.koyeb.app/api/whatsapp/incoming`
 3. Method: `HTTP POST` → **Save**
-
-Done. No more tunnel resets — Twilio talks directly to Render forever.
 
 ---
 
-## What you'll be submitting
+## Submission summary
 
 | Asset | URL |
 |---|---|
-| **Live backend** | `https://sahara-ai.onrender.com` |
-| **Live web app** | `https://sahara-ai.onrender.com/app/` |
-| **API docs** | `https://sahara-ai.onrender.com/docs` |
-| **Source code** | https://github.com/FarhanRajputFelix/Anti-gravity-Hackathon |
-| **APK download** | https://github.com/FarhanRajputFelix/Anti-gravity-Hackathon/releases/latest |
-| **WhatsApp helpline** | Send to `+1 415 523 8886` (Twilio sandbox) after joining with `join <code>` |
-| **Data persistence** | Firebase Realtime DB — survives backend restarts |
+| Live web app | `https://sahara-ai-<random>.koyeb.app/app/` |
+| API docs | `https://sahara-ai-<random>.koyeb.app/docs` |
+| APK download | https://github.com/FarhanRajputFelix/Anti-gravity-Hackathon/releases/latest |
+| Source | https://github.com/FarhanRajputFelix/Anti-gravity-Hackathon |
+| WhatsApp helpline | `+1 415 523 8886` (Twilio sandbox) |
+| Persistent DB | Firebase Realtime DB |
+
+---
+
+## Free-tier alternatives if Koyeb gives trouble
+
+| Platform | Card? | Notes |
+|---|---|---|
+| **Koyeb** ⭐ | No | Recommended. 1 free service. |
+| Hugging Face Spaces | No | FastAPI fully supported, 16GB RAM. Slower regions. |
+| Render | Yes | Was best, now requires card |
+| Railway | No (initially) | $5 free credit then needs card |
+| Fly.io | Yes | More technical, Docker-based |
+| Vercel | No | Serverless — needs FastAPI adapter (`mangum`) |
 
 ---
 
 ## Troubleshooting
 
-**Render service shows "deploy failed"** → click the deploy log; usually a missing env-var. Fix it under **Environment** → **Manual Deploy → Deploy latest commit**.
-
-**Render service "spun down" (10 sec delay first request)** → free tier behavior. Just hit `/healthz` once to wake it. For demo, send 1 request right before showing.
-
-**APK says "connection error"** → the secret `SAHARA_API_BASE_URL` wasn't set BEFORE the APK was built. Set it (Step 3), then rerun the workflow (Step 4).
-
-**Firebase write fails** → check `https://sahara-ai.onrender.com/health` — if `firebase_connected: false`, the JSON env-var is malformed. Re-paste it on a single line.
+- **Koyeb build fails on `firebase-admin`** → make sure Python version is 3.11+ in Koyeb settings.
+- **`firebase_connected: false`** → JSON env var is malformed. Try Koyeb's multi-line var input, or escape newlines as `\n`.
+- **APK shows "connection error"** → `SAHARA_API_BASE_URL` secret wasn't set before the APK was built. Set it (Step 3), then re-run workflow (Step 4).
+- **Cold start delay** → free tier sleeps after ~30 min idle; first request takes ~10s. Hit `/healthz` once before demoing.
