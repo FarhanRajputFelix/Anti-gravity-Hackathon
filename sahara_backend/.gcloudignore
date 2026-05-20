@@ -1,0 +1,13 @@
+# Don't ship these to Cloud Run
+.env
+.env.*
+__pycache__/
+*.pyc
+.pytest_cache/
+.git/
+.gitignore
+.vscode/
+.idea/
+*.log
+test_*.py
+Dockerfile.hf
