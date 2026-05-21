@@ -162,24 +162,22 @@ if os.path.isdir(static_dir):
     app.mount("/static", StaticFiles(directory=static_dir, html=True), name="static")
 
 
-# -- Serve the Flutter web app at /app/ so everything is on a single port
-flutter_dir = os.path.join(os.path.dirname(__file__), "..", "sahara_app", "build", "web")
-flutter_dir = os.path.abspath(flutter_dir)
+# -- Serve the Flutter web app at /app/ so everything is on a single port.
+# Try bundled web_app first (HF/prod), fall back to relative dev path (local).
+flutter_dir = os.path.join(os.path.dirname(__file__), "web_app")
+if not os.path.isdir(flutter_dir):
+    flutter_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "sahara_app", "build", "web"))
 if os.path.isdir(flutter_dir):
     app.mount("/app", StaticFiles(directory=flutter_dir, html=True), name="flutter_app")
     print(f"[SAHARA] Flutter web app mounted at /app  from  {flutter_dir}")
+else:
+    print(f"[SAHARA] No Flutter web build found — /app/ disabled")
 
 
 @app.get("/dashboard", include_in_schema=False)
 async def dashboard_redirect():
     """Redirect /dashboard to the web command center."""
     return RedirectResponse(url="/static/index.html")
-
-
-@app.get("/app", include_in_schema=False)
-async def app_redirect():
-    """Redirect /app to /app/ (StaticFiles needs trailing slash)."""
-    return RedirectResponse(url="/app/")
 
 
 @app.get("/", tags=["Health"])
