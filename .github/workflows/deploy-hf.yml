@@ -39,8 +39,13 @@ jobs:
           import os
           from huggingface_hub import HfApi
 
+          # Accept either just "farhanrajput" or full URL "https://huggingface.co/farhanrajput"
+          raw = os.environ["HF_USERNAME"].strip().rstrip("/")
+          username = raw.split("/")[-1] if "/" in raw else raw
+          print(f"Using HF username: {username}")
+
           api = HfApi(token=os.environ["HF_TOKEN"])
-          repo_id = f"{os.environ['HF_USERNAME']}/{os.environ['HF_SPACE_NAME']}"
+          repo_id = f"{username}/{os.environ['HF_SPACE_NAME']}"
 
           # Create the Space if it doesn't exist (idempotent)
           try:
