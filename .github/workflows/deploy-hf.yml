@@ -1,17 +1,33 @@
 name: Deploy backend to Hugging Face Spaces
 
+# Triggered manually with HF token/username typed into the form
+# (no GitHub repository secrets needed).
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'sahara_backend/**'
-      - '.github/workflows/deploy-hf.yml'
   workflow_dispatch:
+    inputs:
+      hf_token:
+        description: 'Hugging Face token (starts with hf_…). Will be masked in logs.'
+        required: true
+        type: string
+      hf_username:
+        description: 'Hugging Face username (e.g. FarhanRajputFelix)'
+        required: true
+        type: string
+        default: 'FarhanRajputFelix'
+      space_name:
+        description: 'Space name to create/update'
+        required: true
+        type: string
+        default: 'sahara-ai'
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
+      - name: Mask HF token in all subsequent logs
+        run: |
+          echo "::add-mask::${{ inputs.hf_token }}"
+
       - name: Checkout repo
         uses: actions/checkout@v4
         with:
@@ -27,27 +43,28 @@ jobs:
 
       - name: Push backend to Hugging Face Space
         env:
-          HF_TOKEN: ${{ secrets.HF_TOKEN }}
-          HF_USERNAME: ${{ secrets.HF_USERNAME }}
-          HF_SPACE_NAME: sahara-ai
+          HF_TOKEN:       ${{ inputs.hf_token }}
+          HF_USERNAME:    ${{ inputs.hf_username }}
+          HF_SPACE_NAME:  ${{ inputs.space_name }}
         run: |
-          if [ -z "$HF_TOKEN" ] || [ -z "$HF_USERNAME" ]; then
-            echo "::error::Missing HF_TOKEN or HF_USERNAME secret. Add them in repo Settings > Secrets and variables > Actions."
-            exit 1
-          fi
           python - <<'PY'
           import os
           from huggingface_hub import HfApi
 
-          # Accept either just "farhanrajput" or full URL "https://huggingface.co/farhanrajput"
           raw = os.environ["HF_USERNAME"].strip().rstrip("/")
           username = raw.split("/")[-1] if "/" in raw else raw
           print(f"Using HF username: {username}")
 
-          api = HfApi(token=os.environ["HF_TOKEN"])
-          repo_id = f"{username}/{os.environ['HF_SPACE_NAME']}"
+          token = os.environ["HF_TOKEN"].strip()
+          if not token.startswith("hf_"):
+              raise SystemExit(f"::error::HF token should start with 'hf_' — got '{token[:5]}…'")
 
-          # Create the Space if it doesn't exist (idempotent)
+          api = HfApi(token=token)
+          space_name = os.environ['HF_SPACE_NAME'].strip()
+          repo_id = f"{username}/{space_name}"
+          print(f"Target Space: {repo_id}")
+
+          # Create the Space if it doesn't exist
           try:
               api.create_repo(
                   repo_id=repo_id,
@@ -56,7 +73,7 @@ jobs:
                   exist_ok=True,
                   private=False,
               )
-              print(f"Space ready: {repo_id}")
+              print(f"OK — space ready: https://huggingface.co/spaces/{repo_id}")
           except Exception as e:
               print(f"create_repo: {e}")
 
@@ -69,7 +86,7 @@ jobs:
               ignore_patterns=["__pycache__/*", "*.pyc", ".env", ".env.*", "Dockerfile"],
           )
 
-          # Upload Dockerfile.hf as Dockerfile (HF auto-detects Dockerfile in root)
+          # Use HF-tuned Dockerfile (port 7860)
           api.upload_file(
               path_or_fileobj="sahara_backend/Dockerfile.hf",
               path_in_repo="Dockerfile",
@@ -77,15 +94,25 @@ jobs:
               repo_type="space",
               commit_message="Use HF-tuned Dockerfile (port 7860)",
           )
-          print(f"Deploy complete. Open: https://huggingface.co/spaces/{repo_id}")
-          print(f"API base URL: https://{os.environ['HF_USERNAME']}-{os.environ['HF_SPACE_NAME']}.hf.space")
+
+          print()
+          print("=" * 60)
+          print(f"Deploy complete!")
+          print(f"Space:  https://huggingface.co/spaces/{repo_id}")
+          print(f"API:    https://{username}-{space_name}.hf.space")
+          print("=" * 60)
+          print("Build takes ~5 min — watch progress in the Space's Logs tab.")
           PY
 
-      - name: Print live URL
+      - name: Print summary
+        if: always()
         run: |
-          echo "## ✅ Backend deployed" >> $GITHUB_STEP_SUMMARY
+          USERNAME="${{ inputs.hf_username }}"
+          USERNAME="${USERNAME##*/}"
+          SPACE="${{ inputs.space_name }}"
+          echo "## Deploy result" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Space:** https://huggingface.co/spaces/${{ secrets.HF_USERNAME }}/sahara-ai" >> $GITHUB_STEP_SUMMARY
-          echo "**API base URL:** https://${{ secrets.HF_USERNAME }}-sahara-ai.hf.space" >> $GITHUB_STEP_SUMMARY
+          echo "**Space:** https://huggingface.co/spaces/${USERNAME}/${SPACE}" >> $GITHUB_STEP_SUMMARY
+          echo "**API base URL:** https://${USERNAME}-${SPACE}.hf.space" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "Build progress: see the Logs tab on the Space page (3-5 min)." >> $GITHUB_STEP_SUMMARY
