@@ -20,7 +20,17 @@ class ApiService {
 
   static String get baseUrl {
     if (_envBase.isNotEmpty) return _envBase;
-    if (kIsWeb) return 'http://localhost:8000';
+    if (kIsWeb) {
+      // Use the current page's origin so the deployed web app
+      // automatically talks to its own backend (e.g. HF Spaces).
+      // Falls back to localhost for plain `flutter run -d chrome`.
+      try {
+        final origin = Uri.base.origin;
+        if (origin.isNotEmpty && !origin.startsWith('null')) return origin;
+      } catch (_) {}
+      return 'http://localhost:8000';
+    }
+    // Mobile/native — must be set via --dart-define=SAHARA_API_BASE_URL=...
     return 'http://10.0.2.2:8000';
   }
 
