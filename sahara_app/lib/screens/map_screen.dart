@@ -53,6 +53,8 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
     });
   }
 
+  String? _loadError;
+
   Future<void> _loadData() async {
     try {
       final crises = await ApiService.getLiveCrises();
@@ -64,19 +66,55 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
           if (idx > 0) {
             final pinned = crises.removeAt(idx);
             crises.insert(0, pinned);
+          } else if (idx == -1) {
+            // Not in the live store yet — pin the just-analyzed result locally
+            final r = widget.analysisResult!;
+            crises.insert(0, {
+              'crisis_id':    r['crisis_id'],
+              'crisis_type':  r['crisis_type'] ?? 'UNKNOWN',
+              'location':     r['location'] ?? r['city'] ?? 'Unknown',
+              'city':         r['city'] ?? 'islamabad',
+              'severity':     r['severity'] ?? 'MEDIUM',
+              'confidence':   r['confidence'] ?? 0.7,
+              'verification': r['verification_status'] ?? 'UNVERIFIED',
+              'lat':          _cityLat(r['city'] as String? ?? 'islamabad'),
+              'lon':          _cityLon(r['city'] as String? ?? 'islamabad'),
+              'hospitals':    [],
+              'shelters':     [],
+              'routes':       [],
+              'action_count': (r['action_plan'] as List?)?.length ?? 0,
+            });
           }
         }
         setState(() {
           _crises = crises;
           _loading = false;
+          _loadError = null;
         });
-        // Auto-focus on the just-analyzed crisis (or first/most recent)
         if (_crises.isNotEmpty) _focusOnFirstCrisis();
       }
-    } catch (_) {
-      if (mounted) setState(() => _loading = false);
+    } catch (e) {
+      if (mounted) setState(() { _loading = false; _loadError = e.toString(); });
     }
   }
+
+  // Fallback coords if a crisis was just analyzed but isn't in the live store yet
+  static const _cityCoords = {
+    'islamabad':  [33.6938, 73.0652],
+    'karachi':    [24.8607, 67.0011],
+    'lahore':     [31.5204, 74.3587],
+    'rawalpindi': [33.5651, 73.0169],
+    'peshawar':   [34.0151, 71.5249],
+    'quetta':     [30.1798, 66.9750],
+    'multan':     [30.1575, 71.5249],
+    'faisalabad': [31.4504, 73.1350],
+    'hyderabad':  [25.3960, 68.3578],
+    'dadu':       [26.7320, 67.7770],
+    'sukkur':     [27.7136, 68.8420],
+    'gwadar':     [25.1264, 62.3225],
+  };
+  double _cityLat(String c) => (_cityCoords[c.toLowerCase()]?[0] as double?) ?? 33.6938;
+  double _cityLon(String c) => (_cityCoords[c.toLowerCase()]?[1] as double?) ?? 73.0652;
 
   void _focusOnFirstCrisis() {
     if (_crises.isEmpty) return;
