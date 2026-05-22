@@ -38,10 +38,10 @@ jobs:
       - name: Build release APK
         working-directory: sahara_app
         env:
-          # Production backend URL (set as GitHub repo secret SAHARA_API_BASE_URL).
-          # If unset, defaults to the placeholder so the build still succeeds.
-          SAHARA_API_BASE_URL: ${{ secrets.SAHARA_API_BASE_URL || 'https://sahara-ai.onrender.com' }}
+          # Production backend URL (HF Spaces). Override via GitHub secret SAHARA_API_BASE_URL if needed.
+          SAHARA_API_BASE_URL: ${{ secrets.SAHARA_API_BASE_URL || 'https://felix911-sahara-ai.hf.space' }}
         run: |
+          echo "Building APK with backend URL: $SAHARA_API_BASE_URL"
           flutter build apk --release \
             --dart-define=SAHARA_API_BASE_URL=$SAHARA_API_BASE_URL
 

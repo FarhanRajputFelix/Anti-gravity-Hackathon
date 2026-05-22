@@ -185,8 +185,9 @@ async def get_emergency_route(flat: float, flon: float, tlat: float, tlon: float
 @router.get("/tiles/{z}/{x}/{y}.png")
 async def map_tile_proxy(z: int, x: int, y: int):
     """
-    Proxy map tiles through the backend (same-origin) so HF Spaces / strict
-    CSPs don't block them. Caches 1 day at the edge.
+    Proxy map tiles through the backend. Used by:
+      - HF Spaces web app (bypasses CSP)
+      - Native Android APK (no direct CartoDB access on locked-down phones)
     """
     import httpx
     from fastapi.responses import Response
@@ -197,7 +198,11 @@ async def map_tile_proxy(z: int, x: int, y: int):
         return Response(
             content=resp.content,
             media_type="image/png",
-            headers={"Cache-Control": "public, max-age=86400, immutable"},
+            headers={
+                "Cache-Control":                  "public, max-age=86400, immutable",
+                "Access-Control-Allow-Origin":    "*",
+                "Cross-Origin-Resource-Policy":   "cross-origin",
+            },
         )
     except Exception:
         return Response(status_code=502)
