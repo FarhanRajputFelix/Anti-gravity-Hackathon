@@ -411,10 +411,12 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                 backgroundColor: Color(0xFF050E1F),
               ),
               children: [
-                // Dark OpenStreetMap tiles via CartoDB Dark Matter
+                // Dark map tiles proxied through our own backend (same-origin,
+                // bypasses any HF Spaces CSP that blocks third-party CDNs).
+                // Falls back to direct CartoDB on local dev.
                 TileLayer(
-                  urlTemplate: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-                  subdomains: const ['a', 'b', 'c', 'd'],
+                  urlTemplate: '${ApiService.baseUrl}/api/tiles/{z}/{x}/{y}.png',
+                  fallbackUrl: 'https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',
                   userAgentPackageName: 'com.sahara.ai',
                   maxZoom: 19,
                 ),

@@ -182,6 +182,27 @@ async def get_emergency_route(flat: float, flon: float, tlat: float, tlon: float
     return route
 
 
+@router.get("/tiles/{z}/{x}/{y}.png")
+async def map_tile_proxy(z: int, x: int, y: int):
+    """
+    Proxy map tiles through the backend (same-origin) so HF Spaces / strict
+    CSPs don't block them. Caches 1 day at the edge.
+    """
+    import httpx
+    from fastapi.responses import Response
+    url = f"https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png"
+    try:
+        async with httpx.AsyncClient(timeout=6.0) as client:
+            resp = await client.get(url)
+        return Response(
+            content=resp.content,
+            media_type="image/png",
+            headers={"Cache-Control": "public, max-age=86400, immutable"},
+        )
+    except Exception:
+        return Response(status_code=502)
+
+
 @router.get("/earthquakes")
 async def get_live_earthquakes(min_mag: float = 3.0):
     """Real-time earthquake feed from USGS (public, no key)."""
