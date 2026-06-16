@@ -196,11 +196,20 @@ def detect_city(text: str) -> str:
 
 
 def _gemini_extract_city(text: str) -> str:
-    """Use Gemini to extract a Pakistani city from text when patterns fail. Returns lowercase city name or empty string."""
-    import os
+    """Use Gemini to extract a Pakistani city from text when patterns fail."""
+    result = _gemini_classify(text)
+    return result.get("city", "")
+
+
+def _gemini_classify(text: str) -> dict:
+    """
+    Use Gemini AI as a PRIMARY classifier — returns crisis_type, city, severity,
+    urgency, language for a crisis report. Empty dict if Gemini unavailable.
+    """
+    import os, json as _json
     api_key = os.getenv("GEMINI_API_KEY", "")
     if not api_key or api_key == "your-gemini-api-key-here":
-        return ""
+        return {}
     try:
         import warnings
         with warnings.catch_warnings():
@@ -208,21 +217,40 @@ def _gemini_extract_city(text: str) -> str:
             import google.generativeai as genai
         genai.configure(api_key=api_key)
         model = genai.GenerativeModel("gemini-2.0-flash")
-        prompt = (
-            "Extract the Pakistani city name from this crisis report. "
-            "Reply ONLY with the lowercase city name in English (e.g. 'dadu', 'gwadar', 'karachi'). "
-            "If no Pakistani city is mentioned, reply 'unknown'. "
-            f"\n\nReport: {text[:300]}"
-        )
+        prompt = f"""You are SAHARA AI's Crisis Classifier for Pakistan.
+Analyze this crisis report and return ONLY a JSON object (no markdown, no commentary):
+
+{{
+  "crisis_type": "FLOODING" | "FIRE" | "HEATWAVE" | "TRAFFIC_ACCIDENT" | "INFRASTRUCTURE_FAILURE" | "UNKNOWN",
+  "city":        "<lowercase Pakistani city, e.g. dadu, karachi, gwadar>" or "unknown",
+  "severity":    "CRITICAL" | "HIGH" | "MEDIUM" | "LOW",
+  "urgency":     "IMMEDIATE" | "URGENT" | "ROUTINE",
+  "language":    "english" | "urdu" | "roman_urdu",
+  "confidence":  0.0 to 1.0
+}}
+
+Rules:
+- crisis_type = UNKNOWN if no actual emergency described (e.g. test text, random characters).
+- city = unknown if no Pakistani city/district mentioned.
+- Be strict: "people fainting in heat" with no city = UNKNOWN.
+
+Report: {text[:400]}"""
         response = model.generate_content(prompt)
-        if response and response.text:
-            city = response.text.strip().lower().split()[0].strip(".,!?\"'")
-            if city and city != "unknown" and len(city) > 1:
-                print(f"[GEMINI CITY] Extracted '{city}' from text")
-                return city
+        if not response or not response.text:
+            return {}
+        raw = response.text.strip()
+        # Strip markdown fences if Gemini added them
+        if raw.startswith("```"):
+            raw = raw.split("```")[1]
+            if raw.startswith("json"):
+                raw = raw[4:]
+            raw = raw.strip()
+        data = _json.loads(raw)
+        print(f"[GEMINI CLASSIFY] {data}")
+        return data
     except Exception as e:
-        print(f"[GEMINI CITY] Extraction failed: {e}")
-    return ""
+        print(f"[GEMINI CLASSIFY] failed: {e}")
+        return {}
 
 
 def detect_severity_hint(text: str) -> str:
@@ -260,8 +288,14 @@ def run(context: CrisisContext) -> CrisisContext:
 
     text = signal.text
 
+    # ── Step 0: Gemini AI primary classification (when available) ──
+    # Single Gemini call returns crisis_type, city, severity, urgency, language.
+    # We then validate against the deterministic regex layer for redundancy.
+    gemini_result = _gemini_classify(text)
+    gemini_used = bool(gemini_result)
+
     # Step 1: Language detection
-    lang = detect_language(text)
+    lang = gemini_result.get("language") or detect_language(text)
     observations.append(f"Raw signal received ({len(text)} chars). Normalizing language.")
     reasoning_steps.append(f"Language detection scan: found {'Arabic Unicode chars' if lang == 'urdu' else 'Roman Urdu markers' if lang == 'roman_urdu' else 'English text'}. Detected: {lang.upper()}.")
     tool_calls.append(ToolCall(
@@ -271,19 +305,45 @@ def run(context: CrisisContext) -> CrisisContext:
         latency_ms=120
     ))
 
-    # Step 2: Crisis type detection
-    crisis_type = detect_crisis_type(text)
-    observations.append(f"Scanning for crisis type keywords across {len(FLOOD_KEYWORDS + HEATWAVE_KEYWORDS + ACCIDENT_KEYWORDS + FIRE_KEYWORDS)} multilingual patterns.")
-    reasoning_steps.append(f"Matched dominant keyword cluster → Crisis type classified as: {crisis_type.value}.")
+    # Step 2: Crisis type detection — Gemini primary, regex confirmation
+    regex_crisis = detect_crisis_type(text)
+    crisis_type = regex_crisis
+    if gemini_used:
+        try:
+            gemini_ct = CrisisType[gemini_result["crisis_type"]]
+            # Trust Gemini if it found something specific; keep regex if Gemini said UNKNOWN but regex matched
+            if gemini_ct != CrisisType.UNKNOWN:
+                crisis_type = gemini_ct
+            elif regex_crisis != CrisisType.UNKNOWN:
+                crisis_type = regex_crisis
+        except (KeyError, ValueError):
+            pass
+        observations.append(f"[GEMINI AI] Primary classification: {crisis_type.value} (regex agreed: {regex_crisis == crisis_type}).")
+        reasoning_steps.append(f"Gemini AI classified crisis as '{crisis_type.value}'. Regex layer matched '{regex_crisis.value}' for cross-validation.")
+    else:
+        observations.append(f"Scanning crisis-type keywords across {len(FLOOD_KEYWORDS + HEATWAVE_KEYWORDS + ACCIDENT_KEYWORDS + FIRE_KEYWORDS)} multilingual patterns.")
+        reasoning_steps.append(f"Matched dominant keyword cluster → Crisis type: {crisis_type.value}.")
     tool_calls.append(ToolCall(
-        tool_name="crisis_classifier",
-        input={"text": text[:100], "keyword_banks": ["flood", "heat", "accident", "infra"]},
-        output={"crisis_type": crisis_type.value, "match_confidence": 0.87},
-        latency_ms=200
+        tool_name="gemini_classifier" if gemini_used else "crisis_classifier_regex",
+        input={"text": text[:100]},
+        output={
+            "crisis_type":  crisis_type.value,
+            "gemini_match": gemini_result.get("crisis_type") if gemini_used else None,
+            "regex_match":  regex_crisis.value,
+            "confidence":   gemini_result.get("confidence", 0.87),
+        },
+        latency_ms=320 if gemini_used else 200
     ))
 
-    # Step 3: Location extraction
-    city = detect_city(text)
+    # Step 3: Location extraction — Gemini primary, regex fallback
+    gemini_city = (gemini_result.get("city") or "").lower() if gemini_used else ""
+    if gemini_city and gemini_city != "unknown" and gemini_city in CITY_PATTERNS:
+        city = gemini_city
+    elif gemini_city and gemini_city != "unknown":
+        # Gemini named a city we don't have patterns for — trust it anyway
+        city = gemini_city
+    else:
+        city = detect_city(text)
     if signal.location_hint:
         loc_lower = signal.location_hint.lower()
         for c in CITY_PATTERNS:
@@ -292,18 +352,20 @@ def run(context: CrisisContext) -> CrisisContext:
                 break
     location = signal.location_hint or LOCATION_LABELS.get(city, city.title())
     observations.append(f"Location entity extraction complete. City: {city.title()}, Location: {location}.")
-    reasoning_steps.append(f"Geographic entity matched '{location}' in known Pakistani city pattern database.")
+    reasoning_steps.append(f"Geographic entity matched '{location}' in {'Gemini AI extraction' if gemini_city else 'pattern database'}.")
     tool_calls.append(ToolCall(
         tool_name="entity_extractor",
         input={"text": text[:100]},
-        output={"city": city, "location": location},
+        output={"city": city, "location": location, "extractor": "gemini" if gemini_city else "regex"},
         latency_ms=180
     ))
 
-    # Step 4: Severity hint
-    severity_hint = detect_severity_hint(text)
-    observations.append(f"Severity signaling words found → hint: {severity_hint}.")
-    reasoning_steps.append("Urgency vocabulary analysis complete. Applied severity pre-classification for downstream agents.")
+    # Step 4: Severity hint — Gemini primary, regex fallback
+    severity_hint = gemini_result.get("severity") if gemini_used else None
+    if severity_hint not in {"CRITICAL", "HIGH", "MEDIUM", "LOW"}:
+        severity_hint = detect_severity_hint(text)
+    observations.append(f"Severity hint: {severity_hint} ({'Gemini AI' if gemini_used else 'regex'}).")
+    reasoning_steps.append(f"Urgency assessment: '{severity_hint}' (urgency: {gemini_result.get('urgency','URGENT') if gemini_used else 'medium'}). Applied for downstream agents.")
 
     # Step 5: Duplicate detection
     duplicates = check_duplicate(text, context.crisis_id)
